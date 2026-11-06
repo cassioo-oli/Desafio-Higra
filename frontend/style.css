@@ -1,0 +1,112 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: #f3f6f5;
+  color: #163735;
+  font: 16px/1.5 "Segoe UI", sans-serif;
+}
+
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 6%;
+  background: #123d3a;
+  color: white;
+}
+
+header span,
+small {
+  font-size: 0.88rem;
+}
+
+main {
+  max-width: 1150px;
+  margin: 55px auto;
+  padding: 0 5%;
+}
+
+h1 {
+  margin-bottom: 12px;
+  font-size: clamp(32px, 5vw, 52px);
+  line-height: 1.1;
+}
+
+form,
+section {
+  margin: 24px 0;
+  padding: 24px;
+  background: white;
+  border: 1px solid #cedbd8;
+  border-radius: 12px;
+}
+
+label,
+small,
+input {
+  display: block;
+}
+
+label {
+  font-weight: 650;
+}
+
+input {
+  max-width: 100%;
+  margin: 12px 0;
+}
+
+small {
+  color: #496661;
+}
+
+button {
+  margin-top: 20px;
+  padding: 10px 20px;
+  background: #00685b;
+  border: 0;
+  border-radius: 6px;
+  color: white;
+  font: inherit;
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.6;
+}
+
+h2 {
+  margin: 0;
+}
+
+.scroll {
+  max-height: 440px;
+  overflow: auto;
+}
+
+table {
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.88rem;
+}
+
+th,
+td {
+  padding: 8px 12px;
+  border-bottom: 1px solid #dce5e1;
+  text-align: left;
+  white-space: nowrap;
+}
+
+th {
+  position: sticky;
+  top: 0;
+  background: #e3f0eb;
+}
+
+tr:nth-child(even) {
+  background: #f7faf9;
+}

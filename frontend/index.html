@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Importação | Pump Guardian</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="app.js" defer></script>
+  </head>
+
+  <body>
+    <header>
+      <strong>Pump Guardian</strong>
+      <span>Operação · Linhares</span>
+    </header>
+
+    <main>
+      <h1>Importar leituras</h1>
+      <p>Selecione o relatório da bomba para conferir as medições.</p>
+
+      <form>
+        <label for="file">Relatório operacional</label>
+        <input id="file" type="file" accept=".csv,.xlsx" required>
+        <small>CSV ou Excel (.xlsx) · Até 25 MB</small>
+        <button>Importar arquivo</button>
+      </form>
+
+      <p id="status" role="status"></p>
+
+      <section hidden>
+        <h2>Prévia das leituras</h2>
+        <p id="summary"></p>
+
+        <div
+          class="scroll"
+          tabindex="0"
+          aria-label="Tabela de medições"
+        >
+          <table></table>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

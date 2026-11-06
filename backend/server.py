@@ -97,6 +97,49 @@ class Handler(SimpleHTTPRequestHandler):
         self.wfile.write(body)
 
 
+from http.client import HTTPConnection
+from threading import Thread
+import sys
+import webbrowser
+
+
+def iniciar():
+    testar = "--teste" in sys.argv
+    abrir = "--abrir" in sys.argv
+    porta = 0 if abrir or testar else 8000
+    with ThreadingHTTPServer(("127.0.0.1", porta), Handler) as servidor:
+        url = f"http://127.0.0.1:{servidor.server_port}/"
+        thread = Thread(target=servidor.serve_forever, daemon=True)
+        thread.start()
+        try:
+            conexao = HTTPConnection("127.0.0.1", servidor.server_port, timeout=8)
+            try:
+                conexao.request("GET", "/")
+                resposta = conexao.getresponse()
+                if resposta.status != 200 or b"Importar leituras" not in resposta.read():
+                    raise RuntimeError("A tela de importação não foi encontrada.")
+                if testar:
+                    arquivo = "Data;Máquina\n01/06/2026 00:00;bomba1".encode()
+                    conexao.request("POST", "/api/importar", body=arquivo,
+                                    headers={"X-Formato": "csv"})
+                    resposta = conexao.getresponse()
+                    if resposta.status != 200 or json.load(resposta)["count"] != 1:
+                        raise RuntimeError("Falha ao verificar o envio de CSV.")
+            finally:
+                conexao.close()
+            print(f"Pump Guardian disponível em {url}", flush=True)
+            if testar:
+                print("Página e importação CSV verificadas.")
+                return
+            if abrir:
+                webbrowser.open(url)
+            print("Mantenha esta janela aberta enquanto usa o sistema.", flush=True)
+            thread.join()
+        except KeyboardInterrupt:
+            pass
+        finally:
+            servidor.shutdown()
+
+
 if __name__ == "__main__":
-    print("Pump Guardian em http://127.0.0.1:8000", flush=True)
-    ThreadingHTTPServer(("127.0.0.1", 8000), Handler).serve_forever()
+    iniciar()

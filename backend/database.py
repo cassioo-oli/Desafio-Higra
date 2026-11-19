@@ -163,7 +163,6 @@ def readings(params):
         """, args).fetchone()[0]
         return dict(total=total, pagina=page, lacunas=gaps,
                     leituras=[dict(Data=r["data"], Máquina=r["maquina"], **json.loads(r["valores"])) for r in rows])
-+
 def baseline(machine, start="2026-06-01", end="2026-06-08"):
     datetime.strptime(start, "%Y-%m-%d")
     datetime.strptime(end, "%Y-%m-%d")

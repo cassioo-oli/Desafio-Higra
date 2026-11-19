@@ -88,7 +88,7 @@ document.querySelector("#next").addEventListener("click", () => {
 });
 window.addEventListener("importacao-concluida", refreshHistory);
 refreshHistory();
-+async function loadBaseline() {
+async function loadBaseline() {
   const machine = machineSelect.value || machineSelect.options[1]?.value;
   if (!machine) {
     historyStatus.textContent = "Importe as leituras antes de calcular o funcionamento normal.";

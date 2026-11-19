@@ -4,6 +4,9 @@ from io import BytesIO, StringIO
 from zipfile import ZipFile, BadZipFile
 import csv
 import json
+import sqlite3
+from urllib.parse import urlsplit, parse_qs, unquote
+import database
 
 from openpyxl import load_workbook
 
@@ -70,6 +73,29 @@ class Handler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(FRONT), **kwargs)
 
+    def respond_json(self, result, status=200):
+        body = json.dumps(result, default=str).encode()
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(body)
+
+    def do_GET(self):
+        url = urlsplit(self.path)
+        try:
+            if url.path == "/api/historico":
+                self.respond_json(database.history())
+            elif url.path == "/api/leituras":
+                self.respond_json(database.readings(parse_qs(url.query)))
+            else:
+                super().do_GET()
+        except ValueError as exc:
+            self.respond_json({"error": str(exc)}, 400)
+        except sqlite3.Error:
+            self.respond_json({"error": "Falha ao consultar o banco. Tente novamente."}, 503)
+
     def do_POST(self):
         if self.path != "/api/importar":
             self.send_error(404)
@@ -81,12 +107,23 @@ class Handler(SimpleHTTPRequestHandler):
             size = int(self.headers.get("Content-Length", 0))
             if not 0 < size <= LIMIT:
                 raise ValueError("Envie um arquivo entre 1 byte e 25 MB.")
-            result = preview(self.rfile.read(size), extension)
+            raw = self.rfile.read(size)
+            if len(raw) != size:
+                raise ValueError("Upload incompleto. Envie o arquivo novamente.")
+            result = preview(raw, extension)
+            name = unquote(self.headers.get("X-Nome-Arquivo", "arquivo." + extension))[:255]
+            rows = records(raw, extension)
+            try:
+                result.update(database.save_import(raw, name, rows))
+            finally:
+                rows.close()
             status = 200
         except (ValueError, csv.Error) as exc:
             status, result = 400, {"error": str(exc)}
         except (BadZipFile, KeyError, OSError):
             status, result = 400, {"error": "Arquivo inválido. Confira o formato e exporte novamente."}
+        except sqlite3.Error:
+            status, result = 503, {"error": "Falha ao salvar no banco. Tente novamente."}
         except Exception:
             status, result = 422, {"error": "Arquivo ilegível. Confira se ele abre no Excel."}
         body = json.dumps(result, default=str).encode()
@@ -142,4 +179,10 @@ def iniciar():
 
 
 if __name__ == "__main__":
-    iniciar()
+    if "--teste" in sys.argv:
+        from tempfile import TemporaryDirectory
+        with TemporaryDirectory() as folder:
+            database.DB_PATH = Path(folder) / "teste.db"
+            iniciar()
+    else:
+        iniciar()

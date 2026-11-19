@@ -110,3 +110,5 @@ th {
 tr:nth-child(even) {
   background: #f7faf9;
 }
+
+select { padding: 8px; max-width: 100%; } #filters { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; } #filters button { margin: 0; }

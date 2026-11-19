@@ -18,7 +18,7 @@ form.addEventListener("submit", async (event) => {
   statusText.textContent = "Enviando e conferindo as leituras…";
   try {
     const response = await fetch("/api/importar", {
-      method: "POST", headers: {"X-Formato": format}, body: file
+      method: "POST", headers: {"X-Formato": format, "X-Nome-Arquivo": encodeURIComponent(file.name)}, body: file
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error);
@@ -40,7 +40,10 @@ form.addEventListener("submit", async (event) => {
       data.machines.join(", ") + " · Primeiras " + data.rows.length + " de " +
       data.count.toLocaleString("pt-BR") + " leituras · " + data.headers.length + " colunas";
     section.hidden = false;
-    statusText.textContent = file.name + " processado.";
+    statusText.textContent = file.name + " — " + data.novas.toLocaleString("pt-BR") +
+      " leituras salvas, " + data.repetidas.toLocaleString("pt-BR") +
+      " repetidas e " + data.ausentes + " campos de sensor vazios.";
+    window.dispatchEvent(new Event("importacao-concluida"));
   } catch (error) {
     statusText.textContent = error instanceof TypeError ? "Falha ao conectar ao servidor." : error.message;
   } finally {

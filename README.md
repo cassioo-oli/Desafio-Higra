@@ -22,6 +22,12 @@ Campos de sensor vazios ficam como nulos e são contabilizados no resumo. Datas 
 
 O histórico permite filtrar bomba e datas, com 50 leituras por página. A lista mostra as últimas 100 importações. O indicador de lacunas conta intervalos maiores que 1 minuto entre leituras da mesma bomba dentro do período selecionado. Um minuto é a referência adotada para esta amostra e deve ser revisado para outras frequências de coleta.
 
+### Funcionamento normal
+
+O painel calcula a referência por bomba entre 01/06/2026 e 08/06/2026. Inclui somente registros com Rotacao (rpm) maior que zero, usando as leituras completas guardadas no banco. Assim as noites em que a bomba ficou desligada não puxam a média dos sensores para baixo. Mostra quantidade válida, média, mínimo, máximo, amplitude e variância populacional. Os pesos vêm do documento Higra e são parâmetros iniciais.
+
+O arquivo higra.xlsx contém resumos prontos nas abas ligada e ligada e desligada. Eles não substituem o cálculo da janela de 01 a 08 de junho, porque cobrem outro recorte. A aba Sheet1 está vazia.
+
 ### Organização
 
 - backend/server.py recebe as requisições e lê CSV/Excel.

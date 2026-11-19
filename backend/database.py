@@ -163,4 +163,45 @@ def readings(params):
         """, args).fetchone()[0]
         return dict(total=total, pagina=page, lacunas=gaps,
                     leituras=[dict(Data=r["data"], Máquina=r["maquina"], **json.loads(r["valores"])) for r in rows])
++
+def baseline(machine, start="2026-06-01", end="2026-06-08"):
+    datetime.strptime(start, "%Y-%m-%d")
+    datetime.strptime(end, "%Y-%m-%d")
+    if start > end:
+        raise ValueError("A data inicial deve ser anterior à final.")
+    with connection() as db:
+        records = db.execute(
+            "SELECT valores FROM leituras WHERE maquina=? AND data>=? AND data<=?",
+            (machine, start + "T00:00:00", end + "T23:59:59")).fetchall()
+    active = []
+    for record in records:
+        values = json.loads(record["valores"])
+        rotation = values.get("Rotacao (rpm)")
+        if isinstance(rotation, (int, float)) and rotation > 0:
+            active.append(values)
+    if not active:
+        raise ValueError("Não há leituras com rotação acima de zero nesse período.")
+    weights = {
+        "TemperaturaRadial (°C)": 10, "TemperaturaAxial (°C)": 10,
+        "VibracaoAxial (mm/s)": 10, "Rendimento (%)": 8,
+        "TemperaturaEstatorFaseR (°C)": 8, "TemperaturaEstatorFaseS (°C)": 8,
+        "TemperaturaEstatorFaseT (°C)": 8, "Vazao (m³/h)": 7,
+        "PressaoRecalque (mca)": 7, "CorrenteMedia (A)": 7,
+        "CorrenteR (A)": 6, "CorrenteS (A)": 6, "CorrenteT (A)": 6,
+        "PotenciaAtivaMedia (kW)": 6, "TensaoR (V)": 5, "TensaoS (V)": 5,
+        "TensaoT (V)": 5, "TensaoMedia (V)": 5, "FatorPotenciaMedio": 5,
+        "Frequencia (Hz)": 5, "PotenciaReativaMedia (kVAr)": 4,
+        "PotenciaAparenteMedia (kVA)": 4,
+    }
+    signals = {}
+    for name, weight in weights.items():
+        observed = [row[name] for row in active if isinstance(row.get(name), (int, float))]
+        if observed:
+            average = sum(observed) / len(observed)
+            variance = sum((value-average)**2 for value in observed) / len(observed)
+            signals[name] = dict(peso=weight, leituras=len(observed), media=average,
+                                 minimo=min(observed), maximo=max(observed),
+                                 amplitude=max(observed)-min(observed), variancia=variance)
+    return dict(maquina=machine, inicio=start, fim=end, criterio="Rotacao (rpm) > 0",
+                leituras_consideradas=len(active), leituras_periodo=len(records), sinais=signals)
 

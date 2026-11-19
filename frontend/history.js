@@ -88,4 +88,30 @@ document.querySelector("#next").addEventListener("click", () => {
 });
 window.addEventListener("importacao-concluida", refreshHistory);
 refreshHistory();
++async function loadBaseline() {
+  const machine = machineSelect.value || machineSelect.options[1]?.value;
+  if (!machine) {
+    historyStatus.textContent = "Importe as leituras antes de calcular o funcionamento normal.";
+    return;
+  }
+  const start = document.querySelector("#baseline-start").value || "2026-06-01";
+  const end = document.querySelector("#baseline-end").value || "2026-06-08";
+  try {
+    const params = new URLSearchParams({maquina: machine, inicio: start, fim: end});
+    const data = await getJson("/api/referencia?" + params);
+    showTable(document.querySelector("#baseline-table"), Object.entries(data.sinais).map(([signal, stats]) => ({
+      Sinal: signal, Peso: stats.peso, Leituras: stats.leituras,
+      Média: stats.media.toFixed(2), Mínimo: stats.minimo.toFixed(2),
+      Máximo: stats.maximo.toFixed(2), Amplitude: stats.amplitude.toFixed(2),
+      Variância: stats.variancia.toFixed(2)
+    })));
+    document.querySelector("#baseline-status").textContent =
+      data.maquina + " · " + data.inicio + " a " + data.fim + " · " +
+      data.leituras_consideradas.toLocaleString("pt-BR") + " leituras consideradas com " + data.criterio +
+      " (de " + data.leituras_periodo.toLocaleString("pt-BR") + " registros no período).";
+  } catch (error) {
+    document.querySelector("#baseline-status").textContent = error.message;
+  }
+}
+document.querySelector("#calculate-baseline").addEventListener("click", loadBaseline);
 

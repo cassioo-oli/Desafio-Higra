@@ -89,6 +89,14 @@ class Handler(SimpleHTTPRequestHandler):
                 self.respond_json(database.history())
             elif url.path == "/api/leituras":
                 self.respond_json(database.readings(parse_qs(url.query)))
+            elif url.path == "/api/referencia":
+                params = parse_qs(url.query)
+                machine = params.get("maquina", [""])[0]
+                if not machine:
+                    raise ValueError("Selecione uma bomba para calcular a referência.")
+                self.respond_json(database.baseline(machine,
+                    params.get("inicio", ["2026-06-01"])[0],
+                    params.get("fim", ["2026-06-08"])[0]))
             else:
                 super().do_GET()
         except ValueError as exc:

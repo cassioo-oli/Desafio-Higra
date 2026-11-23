@@ -63,3 +63,9 @@ Na base local, a última leitura operacional é de 30/06/2026 às 23:59. O alert
 4. Feche o servidor e abra o iniciador novamente. O histórico deve continuar disponível.
 
 O modo --teste usa banco temporário. Guarde uma cópia do banco local com o servidor fechado quando precisar fazer backup dos dados.
+
+### Visualização 3D da bomba
+
+A aba **Saúde** contém um modelo 3D interativo construído em Three.js a partir das formas visíveis na foto oficial de uma bomba submersa apresentada pela [HIGRA](https://higra.com.br/bomba-submersa/). Arraste com o mouse para girar, use a roda para aproximar, passe o cursor sobre as peças para identificá-las e use os botões para pausar ou restaurar a rotação. Alertas persistentes acendem em vermelho a parte aproximada relacionada à regra.
+
+Este modelo é uma reconstrução visual para navegação e apresentação. Não é um arquivo CAD fornecido pela HIGRA e não representa um gêmeo digital; a posição vermelha orienta a inspeção, mas não determina a localização física do defeito. O Three.js 0.187.0 está incluído localmente em `frontend/vendor/three/` com sua licença MIT, para a visualização não depender de uma conexão com CDN.

@@ -1,101 +1,43 @@
 <!doctype html>
 <html lang="pt-BR">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Importação | Pump Guardian</title>
-    <link rel="stylesheet" href="style.css">
-    <script src="app.js" defer></script><script src="history.js" defer></script>
-  </head>
-
-  <body>
-    <header>
-      <strong>Pump Guardian</strong>
-      <span>Operação · Linhares</span>
-    </header>
-
-    <main>
-      <h1>Importar leituras</h1>
-      <p>Selecione o relatório da bomba para conferir as medições.</p>
-
-      <form>
-        <label for="file">Relatório operacional</label>
-        <input id="file" type="file" accept=".csv,.xlsx" required>
-        <small>CSV ou Excel (.xlsx) · Até 25 MB</small>
-        <button>Importar arquivo</button>
-      </form>
-
-      <p id="status" role="status"></p>
-
-      <section hidden>
-        <h2>Prévia das leituras</h2>
-        <p id="summary"></p>
-
-        <div
-          class="scroll"
-          tabindex="0"
-          aria-label="Tabela de medições"
-        >
-          <table></table>
-        </div>
-      </section>
-      <section aria-labelledby="history-title">
-        <h2 id="history-title">Histórico salvo</h2>
-        <form id="filters">
-          <label for="machine">Bomba</label>
-          <select id="machine" name="maquina"></select>
-          <label for="start">Data inicial</label>
-          <input id="start" type="date" name="inicio">
-          <label for="end">Data final</label>
-          <input id="end" type="date" name="fim">
-          <button>Consultar</button>
-        </form>
-        <p id="history-status" role="status"></p>
-        <div class="scroll" tabindex="0" aria-label="Leituras salvas"><table id="saved-readings"></table></div>
-        <button id="previous" type="button" disabled>Anterior</button>
-        <button id="next" type="button" disabled>Próxima</button>
-      </section>
-      <section aria-labelledby="imports-title">
-        <h2>Funcionamento normal</h2>
-        <p>Referência de 1 a 8 de junho de 2026. Só entram leituras com rotação acima de zero. Os pesos seguem o documento Higra.</p>
-        <label for="baseline-start">De</label><input id="baseline-start" type="date" value="2026-06-01">
-        <label for="baseline-end">Até</label><input id="baseline-end" type="date" value="2026-06-08">
-        <button id="calculate-baseline" type="button">Calcular referência</button>
-        <p id="baseline-status" role="status"></p>
-        <div class="scroll" tabindex="0" aria-label="Estatísticas de funcionamento normal"><table id="baseline-table"></table></div>
-      </section>
-      <section aria-labelledby="evaluation-title">
-        <h2 id="evaluation-title">Validar avisos contra os eventos</h2>
-        <p>A referência usa somente 01 a 08/06/2026. A reprodução avalia 09 a 30/06 em ordem cronológica, sem consultar leituras futuras.</p>
-        <button id="evaluate-events" type="button">Comparar avisos com eventos</button>
-        <p id="evaluation-status" role="status"></p>
-        <div id="evaluation-summary"></div>
-        <div class="scroll" tabindex="0" aria-label="Resultado da comparação com os eventos">
-          <table id="evaluation-events"></table>
-        </div>
-        <h3>Alertas sem evento correspondente</h3>
-        <p id="false-alerts-status"></p>
-        <div class="scroll" tabindex="0" aria-label="Falsos alertas identificados">
-          <table id="false-alerts"></table>
-        </div>
-        <p id="evaluation-notes"></p>
-      </section>
-      <section aria-labelledby="health-title">
-        <h2 id="health-title">Nota de saúde da bomba</h2>
-        <p>A nota considera alertas persistentes no histórico até a última leitura com o motor ligado. Leituras ausentes não reduzem a saúde da bomba.</p>
-        <button id="calculate-health" type="button">Calcular nota de saúde</button>
-        <p id="health-status" role="status"></p>
-        <p id="health-score" aria-live="polite"></p>
-        <p id="health-formula"></p>
-        <div class="scroll" tabindex="0" aria-label="Descontos da nota de saúde">
-          <table id="health-discounts"></table>
-        </div>
-        <p id="health-methodology"></p>
-      </section>
-      <section aria-labelledby="imports-title">
-        <h2 id="imports-title">Últimas 100 importações</h2>
-        <div class="scroll" tabindex="0" aria-label="Arquivos importados"><table id="imports"></table></div>
-      </section>
-    </main>
-  </body>
-</html>
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#102f37"><title>Pump Guardian | Monitoramento claro da bomba</title>
+  <link rel="stylesheet" href="style.css"><script type="importmap">{"imports":{"three":"./vendor/three/three.module.js"}}</script><script src="app.js" defer></script><script src="history.js" defer></script><script type="module" src="pump3d.js"></script>
+</head>
+<body>
+<header class="topbar"><a class="brand" href="#inicio" aria-label="Pump Guardian início"><span class="brand-mark">PG</span><span><strong>Pump Guardian</strong><small>Monitoramento de bombas · Linhares</small></span></a><label class="machine-picker">Bomba selecionada<select id="machine" name="maquina"><option value="">Carregando bombas…</option></select></label></header>
+<main>
+<nav class="tabs" role="tablist" aria-label="Seções do Pump Guardian">
+<button class="tab active" id="tab-inicio" role="tab" aria-selected="true" aria-controls="painel-inicio" data-panel="painel-inicio">Início</button>
+<button class="tab" id="tab-saude" role="tab" aria-selected="false" aria-controls="painel-saude" data-panel="painel-saude">Saúde</button>
+<button class="tab" id="tab-avisos" role="tab" aria-selected="false" aria-controls="painel-avisos" data-panel="painel-avisos">Avisos e regras</button>
+<button class="tab" id="tab-dados" role="tab" aria-selected="false" aria-controls="painel-dados" data-panel="painel-dados">Dados</button>
+</nav>
+<section id="painel-inicio" class="panel active" role="tabpanel" aria-labelledby="tab-inicio">
+<div class="hero"><div><p class="eyebrow">Cuidado antecipado com a operação</p><h1>Entenda a bomba antes que um sinal vire parada.</h1><p class="hero-copy">O Pump Guardian organiza as leituras da bomba e procura mudanças persistentes que podem indicar uma condição que merece atenção.</p><button class="primary" data-go="painel-dados">Enviar leituras</button></div><div class="hero-art" aria-hidden="true"><div class="hero-ring">◉</div><span>Dados → sinais → aviso</span></div></div>
+<div class="section-heading"><div><p class="eyebrow">Em poucas palavras</p><h2>Como funciona</h2></div></div>
+<div class="steps"><article><b>01</b><h3>Envie o relatório</h3><p>Escolha um CSV ou arquivo Excel (.xlsx) exportado com as leituras da bomba.</p></article><article><b>02</b><h3>Comparamos com o normal</h3><p>O sistema usa dias de referência e considera somente momentos em que o motor estava ligado.</p></article><article><b>03</b><h3>Veja o que merece atenção</h3><p>Um aviso aparece quando vários sinais ficam fora do padrão pelo tempo definido. Ele orienta uma inspeção; não confirma uma falha.</p></article></div>
+<div class="notice"><span class="notice-icon">i</span><p><strong>Sobre previsões:</strong> o projeto está em fase de validação com os eventos do desafio. “Antecedência” mostra quanto antes o aviso apareceu em relação a um marco conhecido nos dados. Isso não garante que toda falha futura será prevista.</p></div>
+</section>
+<section id="painel-saude" class="panel" role="tabpanel" aria-labelledby="tab-saude" hidden>
+<div class="page-heading"><p class="eyebrow">Visão rápida</p><h1>Saúde da bomba</h1><p>Uma leitura resumida das condições persistentes encontradas no histórico enviado.</p></div>
+<div class="health-layout"><article class="card score-card"><div class="card-top"><div><p class="eyebrow">Indicador provisório</p><h2>Condição geral</h2></div><span class="pill">Ajuda para priorizar</span></div><div id="health-score" class="score">— <small>/ 100</small></div><p id="health-status" class="muted" role="status">Selecione uma bomba e calcule a nota.</p><button id="calculate-health" class="primary">Atualizar avaliação</button><p id="health-formula" class="small muted"></p></article>
+<article class="card pump-card"><div class="card-top"><div><p class="eyebrow">Bomba submersa Higra</p><h2>Áreas observadas</h2></div><span class="legend-dot"></span></div><div class="pump-viewer" id="pump-viewer"><canvas id="pump-canvas" tabindex="0" aria-label="Modelo 3D interativo de bomba submersa Higra. Arraste para girar e use a roda para aproximar."></canvas><img class="pump-fallback" src="assets/higra-bomba-referencia.png" alt="Foto de referência da bomba submersa azul da Higra" hidden><div class="viewer-status" id="viewer-status" aria-live="polite">Modelo interativo carregando…</div><div class="viewer-toolbar"><button type="button" id="view-reset" aria-label="Restaurar vista inicial">Restaurar vista</button><button type="button" id="view-auto" aria-pressed="true">Pausar giro</button><button type="button" id="view-front">Vista frontal</button></div></div><div class="pump-legend"><span><i class="legend-blue"></i>Conjunto da bomba</span><span><i class="legend-red"></i>Aviso persistente ativo</span><span id="active-zones" aria-live="polite">Calcule a saúde para conferir avisos.</span></div><p class="small muted">Modelo visual interativo baseado na foto da <a href="https://higra.com.br/bomba-submersa/" target="_blank" rel="noreferrer">bomba submersa apresentada pela Higra</a>. O desenho é uma reconstrução aproximada; os destaques vermelhos apontam a região associada à regra, não confirmam uma falha física.</p></article></div>
+<article class="card"><div class="card-top"><div><p class="eyebrow">Por que a nota mudou?</p><h2>Sinais ativos</h2></div></div><p id="health-methodology" class="muted">Calcule a avaliação para ver os sinais e os motivos.</p><div class="scroll"><table id="health-discounts"></table></div></article>
+</section>
+<section id="painel-avisos" class="panel" role="tabpanel" aria-labelledby="tab-avisos" hidden>
+<div class="page-heading"><p class="eyebrow">O que o sistema observa</p><h1>Avisos e regras</h1><p>Os avisos procuram combinações de sinais que persistem. Um pico sozinho não basta.</p></div>
+<div class="notice explain"><span class="notice-icon">?</span><p><strong>O que quer dizer “validar com antecedência”?</strong><br>O sistema reproduz as leituras na ordem em que aconteceram. Comparamos a hora em que cada aviso foi confirmado com dois marcos do histórico: quando o evento começou e quando atingiu o limiar de alarme registrado. São medidas diferentes. Um aviso pode vir antes do limiar e ainda assim surgir depois do início do evento. Essa comparação avalia os quatro eventos conhecidos; não usa os horários deles para criar os avisos.</p></div>
+<div class="card"><div class="card-top"><div><p class="eyebrow">Etapa do desafio Higra</p><h2>Sinais e duração mínima</h2></div><span class="pill">Regras configuradas</span></div><p class="muted">Cada regra combina os sensores relevantes com um tempo mínimo de persistência para reduzir avisos causados por oscilações breves.</p><div id="rules-grid" class="rule-grid"><p class="muted">Carregando regras…</p></div></div>
+<div class="card"><div class="card-top"><div><p class="eyebrow">Replay dos dados</p><h2>Comparar avisos com os eventos</h2></div></div><p class="muted">Usa 1–8 de junho como referência e reproduz 9–30 de junho, sempre lendo o presente e o passado. As leituras futuras não entram no cálculo.</p><button id="evaluate-events" class="primary">Iniciar comparação</button><p id="evaluation-status" role="status" class="muted"></p><div id="evaluation-summary" class="summary-grid"></div><div class="scroll"><table id="evaluation-events"></table></div><details class="details"><summary>Alertas sem evento correspondente e detalhes do método</summary><p id="false-alerts-status" class="muted"></p><div class="scroll"><table id="false-alerts"></table></div><p id="evaluation-notes" class="muted"></p></details></div>
+</section>
+<section id="painel-dados" class="panel" role="tabpanel" aria-labelledby="tab-dados" hidden>
+<div class="page-heading"><p class="eyebrow">Importar e consultar</p><h1>Dados da bomba</h1><p>Envie leituras operacionais para atualizar o histórico usado pelo sistema.</p></div>
+<div class="card upload-card"><div><p class="eyebrow">Novo relatório</p><h2>Importar leituras</h2><p class="muted">Aceita CSV ou Excel (.xlsx) · até 25 MB. O arquivo deve conter as colunas Data e Máquina.</p></div><form id="upload-form"><label for="file">Selecione o relatório operacional</label><input id="file" type="file" accept=".csv,.xlsx" required><button class="primary">Conferir e importar</button></form><p id="status" role="status" class="muted"></p><section id="preview-section" class="preview" hidden><h3>Prévia do arquivo</h3><p id="summary" class="muted"></p><div class="scroll"><table></table></div></section></div>
+<div class="card"><div class="card-top"><div><p class="eyebrow">Registros salvos</p><h2>Histórico de leituras</h2></div></div><form id="filters" class="filters"><label for="start">De</label><input id="start" type="date" name="inicio"><label for="end">Até</label><input id="end" type="date" name="fim"><button>Consultar</button></form><p id="history-status" role="status" class="muted"></p><div class="scroll"><table id="saved-readings"></table></div><div class="pager"><button id="previous" type="button" disabled>Anterior</button><button id="next" type="button" disabled>Próxima</button></div></div>
+<details class="card details"><summary>Referência e importações</summary><p class="muted">A referência inicial usa leituras de 1 a 8 de junho de 2026 e ignora períodos com rotação zerada.</p><div class="filters"><label for="baseline-start">De</label><input id="baseline-start" type="date" value="2026-06-01"><label for="baseline-end">Até</label><input id="baseline-end" type="date" value="2026-06-08"><button id="calculate-baseline" type="button">Calcular referência</button></div><p id="baseline-status" role="status" class="muted"></p><div class="scroll"><table id="baseline-table"></table></div><h3>Últimos arquivos importados</h3><div class="scroll"><table id="imports"></table></div></details>
+</section>
+<footer><span>Pump Guardian</span><span>Protótipo de apoio à manutenção · Dados demonstrativos do desafio Higra</span></footer>
+</main>
+</body></html>

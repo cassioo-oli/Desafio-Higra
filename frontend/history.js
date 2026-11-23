@@ -35,6 +35,7 @@ async function loadReadings() {
   document.querySelector("#previous").disabled = true;
   document.querySelector("#next").disabled = true;
   const params = new URLSearchParams(new FormData(filterForm));
+  if (machineSelect.value) params.set("maquina", machineSelect.value);
   params.set("pagina", page);
   try {
     const data = await getJson("/api/leituras?" + params);
@@ -88,6 +89,11 @@ document.querySelector("#next").addEventListener("click", () => {
 });
 window.addEventListener("importacao-concluida", refreshHistory);
 refreshHistory();
+machineSelect.addEventListener("change", () => {
+  page = 1;
+  loadReadings();
+  if (!document.querySelector("#painel-saude").hidden) calculateHealth();
+});
 
 function formatDelay(minutes, anchor) {
   if (minutes === null || minutes === undefined) return "Sem aviso";
@@ -131,14 +137,13 @@ async function evaluateEvents() {
     const timely = data.eventos.filter(event => event.detectado).length;
     const summary = document.querySelector("#evaluation-summary");
     for (const text of [
-      "Referência: " + data.referencia.leituras_consideradas.toLocaleString("pt-BR") +
-        " leituras com a bomba ligada, de " + data.referencia.inicio + " a " + data.referencia.fim,
-      machine + " · " + timely + " de " + data.eventos.length + " eventos avisados antes do limiar de alarme",
+      timely + " de " + data.eventos.length + " eventos tiveram aviso até o limiar de alarme",
+      data.eventos.filter(event => event.alerta_emitido).length + " de " + data.eventos.length + " tiveram algum aviso associado",
       data.quantidade_falsos_positivos + " alertas sem evento correspondente · limite " +
         data.limite_falsos_positivos + " · " + (data.dentro_limite ? "dentro do limite" : "acima do limite"),
       data.lacunas_de_comunicacao + " intervalo(s) sem leitura detectado(s); lacunas não são convertidas em zeros"
     ]) {
-      const line = document.createElement("p");
+      const line = document.createElement("div"); line.className = "summary-item";
       line.textContent = text;
       summary.append(line);
     }
@@ -166,9 +171,10 @@ async function calculateHealth() {
   }
   button.disabled = true;
   status.textContent = "Calculando a nota pelas regras persistentes…";
-  document.querySelector("#health-discounts").replaceChildren();
-  document.querySelector("#health-score").textContent = "";
   try {
+    document.querySelector("#health-discounts").replaceChildren();
+    document.querySelector("#health-score").textContent = "";
+    document.querySelector("#active-zones").textContent = "Atualizando os avisos ativos…";
     const data = await getJson("/api/saude?" + new URLSearchParams({maquina: machine}));
     document.querySelector("#health-score").textContent = data.nota === null
       ? "Nota indisponível"
@@ -180,10 +186,27 @@ async function calculateHealth() {
       "Desconto (pontos)": item.pontos_descontados, Motivo: item.motivo,
       "Aviso ativo desde": item.alerta_confirmado_em || "—"
     })));
+    const activeZones = document.querySelector("#active-zones");
+    activeZones.replaceChildren();
+    if (data.descontos.length) {
+      for (const item of data.descontos) {
+        const chip = document.createElement("span");
+        chip.className = "zone-chip";
+        chip.textContent = item.regra + " · aviso ativo";
+        activeZones.append(chip);
+      }
+    } else {
+      activeZones.textContent = "Nenhum aviso persistente ativo nesta bomba no fim do histórico.";
+    }
+    window.pumpHealthAlerts = data.descontos;
+    window.dispatchEvent(new CustomEvent("pump-health-updated", {detail: data.descontos}));
     const asOf = data.snapshot_em ? " Referência até " + data.snapshot_em + "." : "";
     status.textContent = data.status + asOf + " " + data.lacunas_de_comunicacao +
       " intervalo(s) sem leitura foram mantidos como lacunas.";
   } catch (error) {
+    document.querySelector("#active-zones").textContent = "Não foi possível atualizar os avisos ativos.";
+    window.pumpHealthAlerts = [];
+    window.dispatchEvent(new CustomEvent("pump-health-updated", {detail: []}));
     status.textContent = error.message;
   } finally {
     button.disabled = false;
@@ -191,6 +214,24 @@ async function calculateHealth() {
 }
 
 document.querySelector("#calculate-health").addEventListener("click", calculateHealth);
+
+async function loadRuleCatalog() {
+  const grid = document.querySelector("#rules-grid");
+  try {
+    const data = await getJson("/api/regras");
+    grid.replaceChildren();
+    for (const rule of data.regras) {
+      const card = document.createElement("article"); card.className = "rule-card";
+      const title = document.createElement("h3"); title.textContent = rule.nome;
+      const signals = document.createElement("p"); signals.innerHTML = "<strong>Sinais:</strong> "; signals.append(document.createTextNode(rule.sinais));
+      const duration = document.createElement("p"); duration.className = "rule-duration"; duration.textContent = "Tempo mínimo: " + rule.duracao;
+      const windowText = document.createElement("p"); windowText.textContent = rule.janela;
+      card.append(title, signals, duration, windowText); grid.append(card);
+    }
+  } catch (error) { grid.textContent = "Não foi possível carregar as regras. " + error.message; }
+}
+loadRuleCatalog();
+
 async function loadBaseline() {
   const machine = machineSelect.value || machineSelect.options[1]?.value;
   if (!machine) {

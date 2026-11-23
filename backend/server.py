@@ -88,6 +88,8 @@ class Handler(SimpleHTTPRequestHandler):
         try:
             if url.path == "/api/historico":
                 self.respond_json(database.history())
+            elif url.path == "/api/regras":
+                self.respond_json({"regras": event_evaluation.public_rules()})
             elif url.path == "/api/leituras":
                 self.respond_json(database.readings(parse_qs(url.query)))
             elif url.path == "/api/referencia":

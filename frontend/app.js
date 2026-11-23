@@ -1,7 +1,7 @@
-const form = document.querySelector("form");
+const form = document.querySelector("#upload-form");
 const fileInput = document.querySelector("#file");
 const statusText = document.querySelector("#status");
-const section = document.querySelector("section");
+const section = document.querySelector("#preview-section");
 const button = form.querySelector("button");
 
 form.addEventListener("submit", async (event) => {
@@ -50,3 +50,23 @@ form.addEventListener("submit", async (event) => {
     button.disabled = fileInput.disabled = false;
   }
 });
+
+for (const tab of document.querySelectorAll(".tab")) {
+  tab.addEventListener("click", () => activatePanel(tab.dataset.panel));
+}
+for (const button of document.querySelectorAll("[data-go]")) {
+  button.addEventListener("click", () => activatePanel(button.dataset.go));
+}
+
+function activatePanel(panelId) {
+  for (const panel of document.querySelectorAll(".panel")) {
+    panel.hidden = panel.id !== panelId;
+    panel.classList.toggle("active", panel.id === panelId);
+  }
+  for (const tab of document.querySelectorAll(".tab")) {
+    const selected = tab.dataset.panel === panelId;
+    tab.classList.toggle("active", selected);
+    tab.setAttribute("aria-selected", String(selected));
+  }
+  window.scrollTo({top: 0, behavior: "smooth"});
+}

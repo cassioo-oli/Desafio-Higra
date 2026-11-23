@@ -13,6 +13,39 @@ REPLAY_START = "2026-06-09"
 REPLAY_END = "2026-06-30"
 FALSE_ALARM_LIMIT = 2
 
+# Parâmetros usados pelo detector e também apresentados na interface.
+PERSISTENCE_CHECKS = {"cavitacao": 3, "eletrico": 5, "mancal": 10, "rotor": 3}
+RULE_CATALOG = {
+    "cavitacao": {
+        "nome": "Possível cavitação", "zona": "impulsor",
+        "sensores": ["Vibração axial", "Vazão", "Pressão de recalque"],
+        "sinais": "Vibração ≥ 4,5 mm/s junto de oscilação da vazão ≥ 25 m³/h e da pressão ≥ 2,5 mca.",
+        "duracao": "Condição presente em 3 verificações consecutivas, feitas em intervalos de 1 minuto.",
+        "janela": "A comparação hidráulica usa 5 leituras recentes; é necessário ter leituras contínuas para avaliar.",
+    },
+    "eletrico": {
+        "nome": "Possível desbalanceamento elétrico", "zona": "motor",
+        "sensores": ["Tensão das fases", "Corrente das fases", "Temperatura do estator"],
+        "sinais": "Ao menos 2 desvios: tensão S 7 V abaixo da relação normal com R/T; corrente S relativa 4% acima; temperatura S 3,5 °C acima.",
+        "duracao": "Ao menos 2 desvios em 5 verificações consecutivas, uma por minuto.",
+        "janela": "Cada verificação usa a média dos últimos 5 minutos e compara com a referência do mesmo horário.",
+    },
+    "mancal": {
+        "nome": "Possível aquecimento do mancal", "zona": "mancal",
+        "sensores": ["Temperatura radial", "Temperatura axial", "Vibração axial"],
+        "sinais": "Temperatura radial +7 °C, diferença radial-axial +4 °C e vibração +0,7 mm/s em relação à referência horária.",
+        "duracao": "Os 3 sinais devem persistir em 10 verificações consecutivas, uma por minuto.",
+        "janela": "As verificações usam médias dos últimos 15 minutos e comparação com o mesmo horário da referência.",
+    },
+    "rotor": {
+        "nome": "Possível desgaste ou entupimento do rotor", "zona": "rotor",
+        "sensores": ["Vazão", "Pressão de recalque", "Rendimento"],
+        "sinais": "Vazão abaixo de 97%, pressão abaixo de 99,5% e rendimento 2 pontos abaixo da referência do mesmo horário.",
+        "duracao": "Desvios em 3 horas operacionais completas consecutivas, com ao menos 30 leituras por hora.",
+        "janela": "A avaliação agrupa leituras por hora e desconsidera horas com pouca informação.",
+    },
+}
+
 # Este catálogo serve somente para avaliar os alertas depois da simulação.
 # O detector não consulta datas, rótulos de falha nem a coluna Alarme.
 EVENTS = [
@@ -64,6 +97,15 @@ RULES = {
     "mancal": "Temperatura radial acima da referência horária, diferença radial-axial crescente e vibração acompanhando a tendência.",
     "rotor": "Média horária de vazão abaixo de 97% da referência horária, pressão abaixo de 99,5% e rendimento pelo menos 2 pontos abaixo, por 3 horas operacionais seguidas.",
 }
+
+
+def public_rules():
+    """Devolve catálogo explicativo para a interface, sem expor implementações internas."""
+    return [
+        {"tipo": kind, **details, "condicao": RULES[kind],
+         "verificacoes": PERSISTENCE_CHECKS[kind]}
+        for kind, details in RULE_CATALOG.items()
+    ]
 
 ALERT_NAMES = {
     "cavitacao": "Cavitação",
@@ -169,9 +211,9 @@ def _calculate(rows, replay_end=REPLAY_END):
 
     alerts = []
     states = {
-        "cavitacao": _AlertState(3),
-        "eletrico": _AlertState(5),
-        "mancal": _AlertState(10),
+        "cavitacao": _AlertState(PERSISTENCE_CHECKS["cavitacao"]),
+        "eletrico": _AlertState(PERSISTENCE_CHECKS["eletrico"]),
+        "mancal": _AlertState(PERSISTENCE_CHECKS["mancal"]),
         "rotor": _AlertState(1),
     }
     rolling = deque(maxlen=20)
@@ -210,7 +252,7 @@ def _calculate(rows, replay_end=REPLAY_END):
                          and pressure < pressure_base * 0.995
                          and efficiency < efficiency_base - 2)
         rotor_streak = rotor_streak + 1 if condition and adjacent else (1 if condition else 0)
-        if rotor_streak >= 3:
+        if rotor_streak >= PERSISTENCE_CHECKS["rotor"]:
             start = key - timedelta(hours=2)
             confirmed = key + timedelta(hours=1)
             event = states["rotor"].update(True, confirmed)
@@ -417,7 +459,8 @@ def health_score(machine):
         alert = next((item for item in active_alerts if item["tipo"] == kind), None)
         rows_out.append({
             "regra": ALERT_NAMES[kind], "sinais": signals, "pontos_descontados": 25,
-            "motivo": reason, "alerta_confirmado_em": alert["confirmado_em"] if alert else None,
+            "motivo": reason, "zona": RULE_CATALOG[kind]["zona"],
+            "alerta_confirmado_em": alert["confirmado_em"] if alert else None,
         })
     score = max(0, 100 - 25 * len(rows_out))
     return {

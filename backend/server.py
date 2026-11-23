@@ -7,6 +7,7 @@ import json
 import sqlite3
 from urllib.parse import urlsplit, parse_qs, unquote
 import database
+import event_evaluation
 
 from openpyxl import load_workbook
 
@@ -97,6 +98,16 @@ class Handler(SimpleHTTPRequestHandler):
                 self.respond_json(database.baseline(machine,
                     params.get("inicio", ["2026-06-01"])[0],
                     params.get("fim", ["2026-06-08"])[0]))
+            elif url.path == "/api/avaliacao-eventos":
+                machine = parse_qs(url.query).get("maquina", [""])[0]
+                if not machine:
+                    raise ValueError("Selecione uma bomba para comparar os avisos.")
+                self.respond_json(event_evaluation.evaluate(machine))
+            elif url.path == "/api/saude":
+                machine = parse_qs(url.query).get("maquina", [""])[0]
+                if not machine:
+                    raise ValueError("Selecione uma bomba para calcular a nota de saúde.")
+                self.respond_json(event_evaluation.health_score(machine))
             else:
                 super().do_GET()
         except ValueError as exc:

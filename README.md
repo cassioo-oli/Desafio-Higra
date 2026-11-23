@@ -28,12 +28,31 @@ O painel calcula a referência por bomba entre 01/06/2026 e 08/06/2026. Inclui s
 
 O arquivo higra.xlsx contém resumos prontos nas abas ligada e ligada e desligada. Eles não substituem o cálculo da janela de 01 a 08 de junho, porque cobrem outro recorte. A aba Sheet1 está vazia.
 
+### Validação dos avisos
+
+O botão **Comparar avisos com eventos** reproduz as leituras entre 09 e 30/06/2026 em ordem cronológica. A referência é calculada apenas com leituras em que `Rotacao (rpm) > 0`, entre 01 e 08/06. Nenhum cálculo do detector consulta a coluna `Alarme`, o gabarito ou leituras futuras. O calendário dos quatro eventos só é usado depois para medir o resultado.
+
+As regras iniciais exigem sinais combinados e persistência. Cavitação usa vibração alta junto de oscilação recente de vazão e pressão, para filtrar um pico único. Desbalanceamento compara tensão, corrente e temperatura da fase S com as fases R/T. Mancal combina temperatura radial, diferença radial-axial e vibração contra referências por hora. Rotor/entupimento exige três horas operacionais seguidas com vazão abaixo de 97% da referência horária, pressão abaixo de 99,5% e rendimento pelo menos 2 pontos menor. Horas com menos de 30 leituras operacionais não são avaliadas.
+
+O relatório separa antecedência em relação ao início do evento e ao limiar em que o alarme da amostra disparou. Um aviso que chega depois do início, mas antes do limiar, aparece como aviso antecipado do limiar, sem afirmar que previu o começo da falha. Episódios da regra sem correspondência com os eventos são contados como falsos positivos; o limite do desafio é dois. Lacunas de comunicação são contabilizadas e nunca preenchidas com zeros. As regras são heurísticas iniciais baseadas nos sinais descritos no desafio. Como foram definidas para esta amostra conhecida, o resultado não é uma validação independente; para medir generalização, congele as regras e avalie outro período ainda não usado para defini-las.
+
+Na base local atual, a reprodução encontrou aviso antes do limiar nos quatro eventos, um falso positivo (abaixo do limite de dois) e um intervalo sem leitura de 49 minutos. O primeiro aviso de cavitação apareceu 18 minutos depois do início do evento, mas 1 minuto antes do limiar; os outros avisos chegaram 1h17 antes do limiar elétrico, 37h01 antes do limiar do mancal e 5 dias e 56 minutos antes do limiar de vazão. Estes resultados descrevem regras iniciais deste conjunto de dados e precisam ser revistos pela equipe antes de serem tratados como desempenho operacional.
+
+### Nota de saúde
+
+O botão **Calcular nota de saúde** mostra a nota na última leitura em que a bomba estava ligada. A fórmula provisória começa em 100 e desconta 25 pontos por regra de falha persistente ativa, com limite de 0 a 100. A tabela identifica a regra, os sensores envolvidos, o motivo e quando o aviso começou. A nota usa as regras persistentes descritas acima; leituras com motor desligado não contam como condição de falha e lacunas de dados não reduzem a nota.
+
+Na base local, a última leitura operacional é de 30/06/2026 às 23:59. O alerta de desgaste/entupimento ainda está ativo, então a nota exibida é 75/100, com desconto de 25 pontos para vazão, pressão e rendimento. Os pontos iguais por regra são uma escala inicial de demonstração, não um peso de severidade aprovado pela Higra. A equipe deve validar essa escala com especialistas antes de usá-la para decisões de manutenção.
+
 ### Organização
 
 - backend/server.py recebe as requisições e lê CSV/Excel.
 - backend/database.py valida os valores, salva e consulta o SQLite.
+- backend/event_evaluation.py calcula referências e avalia os alertas da amostra sem usar datas futuras.
 - frontend/app.js controla o envio e a prévia.
 - frontend/history.js controla filtros, histórico e paginação.
+- A seção Validação dos avisos compara os resultados com os quatro eventos e conta falsos positivos.
+- A seção Nota de saúde mostra a nota e explica a regra persistente e os sensores que geraram cada desconto.
 - backend/pump_guardian.db é criado automaticamente e ignorado pelo Git.
 
 ### Conferência manual

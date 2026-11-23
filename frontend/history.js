@@ -88,6 +88,109 @@ document.querySelector("#next").addEventListener("click", () => {
 });
 window.addEventListener("importacao-concluida", refreshHistory);
 refreshHistory();
+
+function formatDelay(minutes, anchor) {
+  if (minutes === null || minutes === undefined) return "Sem aviso";
+  const amount = Math.abs(minutes);
+  const days = Math.floor(amount / 1440);
+  const hours = Math.floor((amount % 1440) / 60);
+  const rest = amount % 60;
+  const duration = [days ? days + " d" : "", hours ? hours + " h" : "", rest ? rest + " min" : ""]
+    .filter(Boolean).join(" ") || "0 min";
+  return minutes >= 0 ? duration + " antes" : duration + " depois do " + anchor;
+}
+
+async function evaluateEvents() {
+  const machine = machineSelect.value || machineSelect.options[1]?.value;
+  const button = document.querySelector("#evaluate-events");
+  const status = document.querySelector("#evaluation-status");
+  if (!machine) {
+    status.textContent = "Importe as leituras e selecione uma bomba antes de avaliar.";
+    return;
+  }
+  button.disabled = true;
+  status.textContent = "Reproduzindo as leituras em ordem cronológica…";
+  document.querySelector("#evaluation-summary").replaceChildren();
+  document.querySelector("#evaluation-events").replaceChildren();
+  document.querySelector("#false-alerts").replaceChildren();
+  try {
+    const data = await getJson("/api/avaliacao-eventos?" + new URLSearchParams({maquina: machine}));
+    showTable(document.querySelector("#evaluation-events"), data.eventos.map(event => ({
+      Evento: event.id + " · " + event.evento,
+      Resultado: event.status,
+      "Aviso confirmado": event.alerta_em || "—",
+      "Início do evento": event.inicio_evento,
+      "Limiar de alarme": event.limiar_alarme,
+      "Antecedência ao início": formatDelay(event.minutos_antes_do_evento, "início do evento"),
+      "Antecedência ao limiar": formatDelay(event.minutos_antes_do_limiar, "limiar de alarme"),
+      "Regra utilizada": event.regra
+    })));
+    showTable(document.querySelector("#false-alerts"), data.falsos_positivos.map(alert => ({
+      Tipo: alert.falha, "Aviso confirmado": alert.confirmado_em, Condição: alert.previsto
+    })));
+    const timely = data.eventos.filter(event => event.detectado).length;
+    const summary = document.querySelector("#evaluation-summary");
+    for (const text of [
+      "Referência: " + data.referencia.leituras_consideradas.toLocaleString("pt-BR") +
+        " leituras com a bomba ligada, de " + data.referencia.inicio + " a " + data.referencia.fim,
+      machine + " · " + timely + " de " + data.eventos.length + " eventos avisados antes do limiar de alarme",
+      data.quantidade_falsos_positivos + " alertas sem evento correspondente · limite " +
+        data.limite_falsos_positivos + " · " + (data.dentro_limite ? "dentro do limite" : "acima do limite"),
+      data.lacunas_de_comunicacao + " intervalo(s) sem leitura detectado(s); lacunas não são convertidas em zeros"
+    ]) {
+      const line = document.createElement("p");
+      line.textContent = text;
+      summary.append(line);
+    }
+    document.querySelector("#false-alerts-status").textContent = data.falsos_positivos.length
+      ? "São contados episódios sem correspondência com os quatro eventos."
+      : "Nenhum episódio de alerta sem correspondência foi encontrado.";
+    document.querySelector("#evaluation-notes").textContent = data.nota;
+    status.textContent = "Avaliação concluída. Os eventos servem apenas para pontuar o replay; as regras não usam seus horários.";
+  } catch (error) {
+    status.textContent = error.message;
+  } finally {
+    button.disabled = false;
+  }
+}
+
+document.querySelector("#evaluate-events").addEventListener("click", evaluateEvents);
+
+async function calculateHealth() {
+  const machine = machineSelect.value || machineSelect.options[1]?.value;
+  const button = document.querySelector("#calculate-health");
+  const status = document.querySelector("#health-status");
+  if (!machine) {
+    status.textContent = "Importe as leituras e selecione uma bomba antes de calcular.";
+    return;
+  }
+  button.disabled = true;
+  status.textContent = "Calculando a nota pelas regras persistentes…";
+  document.querySelector("#health-discounts").replaceChildren();
+  document.querySelector("#health-score").textContent = "";
+  try {
+    const data = await getJson("/api/saude?" + new URLSearchParams({maquina: machine}));
+    document.querySelector("#health-score").textContent = data.nota === null
+      ? "Nota indisponível"
+      : data.nota + " / 100";
+    document.querySelector("#health-formula").textContent = data.formula;
+    document.querySelector("#health-methodology").textContent = data.nota_metodologica || "";
+    showTable(document.querySelector("#health-discounts"), data.descontos.map(item => ({
+      Regra: item.regra, "Sinais envolvidos": item.sinais,
+      "Desconto (pontos)": item.pontos_descontados, Motivo: item.motivo,
+      "Aviso ativo desde": item.alerta_confirmado_em || "—"
+    })));
+    const asOf = data.snapshot_em ? " Referência até " + data.snapshot_em + "." : "";
+    status.textContent = data.status + asOf + " " + data.lacunas_de_comunicacao +
+      " intervalo(s) sem leitura foram mantidos como lacunas.";
+  } catch (error) {
+    status.textContent = error.message;
+  } finally {
+    button.disabled = false;
+  }
+}
+
+document.querySelector("#calculate-health").addEventListener("click", calculateHealth);
 async function loadBaseline() {
   const machine = machineSelect.value || machineSelect.options[1]?.value;
   if (!machine) {

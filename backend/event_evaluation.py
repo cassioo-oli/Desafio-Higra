@@ -1,6 +1,6 @@
 """Replay temporal das regras contra os eventos conhecidos do desafio Higra."""
 from collections import defaultdict, deque
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 import json
 import math
 
@@ -204,7 +204,7 @@ def _alert_payload(kind, candidate_at, confirmed_at):
             "confirmado_em": confirmed_at.isoformat(timespec="minutes")}
 
 
-def _calculate(rows, replay_end=REPLAY_END):
+def _calculate(rows, replay_end=REPLAY_END, daily_snapshots=None):
     reference = _baseline(rows)
     if not reference:
         raise ValueError("Não há leituras em operação entre 01/06 e 08/06/2026 para montar a referência.")
@@ -223,6 +223,17 @@ def _calculate(rows, replay_end=REPLAY_END):
     rotor_streak = 0
     last_hour = None
     missing_intervals = 0
+    last_observed_day = None
+
+    def save_daily_snapshot(day):
+        if daily_snapshots is None:
+            return
+        active = [kind for kind, state in states.items() if state.open]
+        daily_snapshots.append({
+            "data": day.isoformat(),
+            "nota": max(0, 100 - 25 * len(active)),
+            "regras_ativas": [ALERT_NAMES[kind] for kind in active],
+        })
 
     def update(kind, condition, stamp):
         event = states[kind].update(condition, stamp)
@@ -263,6 +274,13 @@ def _calculate(rows, replay_end=REPLAY_END):
         last_hour = key
 
     for timestamp, values in rows:
+        if last_observed_day is not None and timestamp.date() != last_observed_day:
+            if hour_key is not None and hour_key.date() == last_observed_day:
+                finish_hour(hour_key, hour_rows)
+                hour_key = None
+                hour_rows = []
+            save_daily_snapshot(last_observed_day)
+        last_observed_day = timestamp.date()
         if timestamp.date().isoformat() < REPLAY_START or (
             replay_end is not None and timestamp.date().isoformat() > replay_end
         ):
@@ -345,6 +363,8 @@ def _calculate(rows, replay_end=REPLAY_END):
 
     if hour_key is not None:
         finish_hour(hour_key, hour_rows)
+    if last_observed_day is not None:
+        save_daily_snapshot(last_observed_day)
     alerts.sort(key=lambda alert: alert["confirmado_em"])
     active_rules = [kind for kind, state in states.items() if state.open]
     return alerts, missing_intervals, active_rules
@@ -471,4 +491,61 @@ def health_score(machine):
         "formula": "100 menos 25 pontos por regra ativa, limitada ao intervalo de 0 a 100.",
         "lacunas_de_comunicacao": missing_intervals,
         "nota_metodologica": "Pesos iguais e limiar de persistência são parâmetros iniciais de protótipo, não uma escala clínica ou de segurança validada pela Higra. Dados ausentes não reduzem a saúde da bomba; aparecem como lacunas de qualidade do dado.",
+    }
+
+
+def health_history(machine, start=None, end=None):
+    """Resume a nota no fim de cada dia, reproduzindo as regras até a data filtrada."""
+    with database.connection() as db:
+        rows = db.execute(
+            "SELECT data,valores FROM leituras WHERE maquina=? AND data>=? ORDER BY data",
+            (machine, BASELINE_START + "T00:00:00"),
+        ).fetchall()
+    if not rows:
+        raise ValueError("Não há leituras salvas para esta bomba.")
+
+    available_end = date.fromisoformat(rows[-1]["data"][:10])
+    try:
+        start_date = date.fromisoformat(start) if start else date.fromisoformat(BASELINE_START)
+        end_date = date.fromisoformat(end) if end else available_end
+    except ValueError as exc:
+        raise ValueError("Informe as datas no formato dia/mês/ano válido.") from exc
+    if start_date < date.fromisoformat(BASELINE_START):
+        raise ValueError("O período deve começar em 01/06/2026 ou depois, quando há referência disponível.")
+    if start_date > end_date:
+        raise ValueError("A data inicial deve ser anterior ou igual à data final.")
+
+    processing_end = max(end_date, date.fromisoformat(BASELINE_END))
+    prepared = [(datetime.fromisoformat(row["data"]), json.loads(row["valores"])) for row in rows
+                if row["data"] <= processing_end.isoformat() + "T23:59:59"]
+    snapshots = []
+    alerts, missing_intervals, _ = _calculate(
+        prepared, replay_end=end_date.isoformat(), daily_snapshots=snapshots
+    )
+    days = [item for item in snapshots if start_date.isoformat() <= item["data"] <= end_date.isoformat()]
+    scores = [item["nota"] for item in days]
+    period_alerts = []
+    for alert in alerts:
+        confirmed_day = alert["confirmado_em"][:10]
+        if start_date.isoformat() <= confirmed_day <= end_date.isoformat():
+            period_alerts.append({
+                "tipo": alert["tipo"], "nome": alert["falha"],
+                "regra": alert["previsto"], "inicio_condicao": alert["inicio_condicao"],
+                "confirmado_em": alert["confirmado_em"],
+            })
+
+    return {
+        "maquina": machine,
+        "inicio": start_date.isoformat(), "fim": end_date.isoformat(),
+        "inicio_disponivel": rows[0]["data"][:10],
+        "fim_disponivel": available_end.isoformat(),
+        "nota_atual": scores[-1] if scores else None,
+        "data_nota_atual": days[-1]["data"] if days else None,
+        "media_diaria": round(sum(scores) / len(scores), 1) if scores else None,
+        "minima_diaria": min(scores) if scores else None,
+        "dias_com_dados": len(days),
+        "dias": days,
+        "alertas": period_alerts,
+        "lacunas_de_comunicacao": missing_intervals,
+        "nota_metodologica": "Cada ponto é calculado ao fim de um dia, usando somente leituras até aquela data. A média e o mínimo consideram dias com registros; cada regra ativa desconta 25 pontos.",
     }

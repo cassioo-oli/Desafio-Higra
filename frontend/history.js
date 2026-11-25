@@ -4,6 +4,7 @@ const machineSelect = document.querySelector("#machine");
 let page = 1;
 let requestNumber = 0;
 let healthRequestNumber = 0;
+let healthHistoryRequestNumber = 0;
 let importedRows = [];
 
 async function getJson(url) {
@@ -81,6 +82,7 @@ async function refreshHistory() {
     page = 1;
     await loadReadings();
     await calculateHealth();
+    if (machineSelect.value) await loadHealthHistory();
   } catch (error) {
     historyStatus.textContent = "Não foi possível carregar o histórico. " + error.message;
   }
@@ -108,6 +110,8 @@ machineSelect.addEventListener("change", () => {
   document.querySelector("#calculate-health").disabled = !machineSelect.value;
   loadReadings();
   calculateHealth();
+  if (machineSelect.value) loadHealthHistory();
+  else clearHealthHistory();
 });
 
 function formatDelay(minutes, anchor) {
@@ -189,6 +193,7 @@ async function calculateHealth() {
     document.querySelector("#health-methodology").textContent = "Selecione uma bomba para ver os sinais e os motivos.";
     document.querySelector("#health-discounts").replaceChildren();
     document.querySelector("#active-zones").textContent = "Selecione uma bomba para ver avisos.";
+    clearHealthHistory();
     window.pumpHealthAlerts = [];
     window.dispatchEvent(new CustomEvent("pump-health-updated", {detail: []}));
     updateHealthAlert("", null);
@@ -280,6 +285,135 @@ document.querySelector("#health-alert-dismiss").addEventListener("click", () => 
 });
 
 document.querySelector("#calculate-health").addEventListener("click", calculateHealth);
+
+function clearHealthHistory() {
+  healthHistoryRequestNumber += 1;
+  document.querySelector("#health-history-card").hidden = true;
+  document.querySelector("#health-chart").replaceChildren();
+  document.querySelector("#health-period-alerts").replaceChildren();
+  document.querySelector("#period-current").textContent = "—";
+  document.querySelector("#period-current-date").textContent = "";
+  document.querySelector("#period-average").textContent = "—";
+  document.querySelector("#period-minimum").textContent = "—";
+}
+
+async function loadHealthHistory(useSelectedPeriod = false) {
+  const machine = machineSelect.value;
+  if (!machine) {
+    clearHealthHistory();
+    return;
+  }
+  const currentRequest = ++healthHistoryRequestNumber;
+  const card = document.querySelector("#health-history-card");
+  const status = document.querySelector("#health-history-status");
+  card.hidden = false;
+  status.textContent = "Calculando a evolução por dia…";
+  document.querySelector("#health-chart").replaceChildren();
+  document.querySelector("#health-period-alerts").replaceChildren();
+  const params = new URLSearchParams({maquina: machine});
+  if (useSelectedPeriod) {
+    const start = document.querySelector("#health-start").value;
+    const end = document.querySelector("#health-end").value;
+    if (start) params.set("inicio", start);
+    if (end) params.set("fim", end);
+  }
+  try {
+    const data = await getJson("/api/saude-historico?" + params);
+    if (currentRequest !== healthHistoryRequestNumber) return;
+    if (!useSelectedPeriod) {
+      document.querySelector("#health-start").value = data.inicio;
+      document.querySelector("#health-end").value = data.fim;
+    }
+    document.querySelector("#health-start").min = data.inicio_disponivel;
+    document.querySelector("#health-end").min = data.inicio_disponivel;
+    document.querySelector("#health-start").max = data.fim_disponivel;
+    document.querySelector("#health-end").max = data.fim_disponivel;
+    renderHealthHistory(data);
+  } catch (error) {
+    if (currentRequest !== healthHistoryRequestNumber) return;
+    status.textContent = error.message;
+    renderHealthHistory({dias: [], alertas: [], nota_atual: null, media_diaria: null, minima_diaria: null});
+  }
+}
+
+function renderHealthHistory(data) {
+  const chart = document.querySelector("#health-chart");
+  const status = document.querySelector("#health-history-status");
+  const svgNS = "http://www.w3.org/2000/svg";
+  const makeSvg = (name, attributes = {}) => {
+    const element = document.createElementNS(svgNS, name);
+    for (const [key, value] of Object.entries(attributes)) element.setAttribute(key, String(value));
+    return element;
+  };
+  const days = data.dias || [];
+  const alerts = data.alertas || [];
+  document.querySelector("#period-current").textContent = data.nota_atual == null ? "—" : data.nota_atual + "/100";
+  document.querySelector("#period-current-date").textContent = data.data_nota_atual
+    ? new Date(data.data_nota_atual + "T12:00:00").toLocaleDateString("pt-BR") : "Sem leituras no período";
+  document.querySelector("#period-average").textContent = data.media_diaria == null ? "—" : data.media_diaria + "/100";
+  document.querySelector("#period-minimum").textContent = data.minima_diaria == null ? "—" : data.minima_diaria + "/100";
+  chart.replaceChildren();
+  const title = makeSvg("title");
+  title.textContent = "Nota diária da bomba selecionada";
+  chart.append(title);
+  if (days.length) {
+    const left = 52, right = 18, top = 20, bottom = 42;
+    const width = 760 - left - right, height = 280 - top - bottom;
+    const yFor = score => top + ((100 - score) / 100) * height;
+    for (const score of [0, 25, 50, 75, 100]) {
+      const y = yFor(score);
+      chart.append(makeSvg("line", {x1:left, y1:y, x2:left+width, y2:y, class:"chart-gridline"}));
+      const label = makeSvg("text", {x:left-10, y:y+4, "text-anchor":"end", class:"chart-axis-label"});
+      label.textContent = score;
+      chart.append(label);
+    }
+    const xFor = index => days.length === 1 ? left + width / 2 : left + index * width / (days.length - 1);
+    const points = days.map((day, index) => xFor(index) + "," + yFor(day.nota)).join(" ");
+    chart.append(makeSvg("polyline", {points, class:"chart-line"}));
+    const labelStep = Math.max(1, Math.ceil((days.length - 1) / 5));
+    days.forEach((day, index) => {
+      const x = xFor(index), y = yFor(day.nota);
+      const dot = makeSvg("circle", {cx:x, cy:y, r:days.length > 35 ? 2.8 : 4, class:"chart-point"});
+      const tip = makeSvg("title");
+      tip.textContent = new Date(day.data + "T12:00:00").toLocaleDateString("pt-BR") + " · Nota " + day.nota + "/100" +
+        (day.regras_ativas.length ? " · " + day.regras_ativas.join(", ") : " · Sem regras ativas");
+      dot.append(tip);
+      chart.append(dot);
+      if (index % labelStep === 0 || index === days.length - 1) {
+        const dateLabel = makeSvg("text", {x, y:top+height+24, "text-anchor":"middle", class:"chart-axis-label"});
+        dateLabel.textContent = new Date(day.data + "T12:00:00").toLocaleDateString("pt-BR", {day:"2-digit", month:"2-digit"});
+        chart.append(dateLabel);
+      }
+    });
+  } else {
+    const empty = makeSvg("text", {x:380, y:135, "text-anchor":"middle", class:"chart-empty"});
+    empty.textContent = "Sem leituras para este período";
+    chart.append(empty);
+  }
+  status.textContent = days.length
+    ? days.length + " dia(s) com leituras · " + alerts.length + " aviso(s) confirmado(s) no período · " +
+      (data.lacunas_de_comunicacao || 0) + " intervalo(s) sem comunicação no histórico."
+    : "Não há leituras dentro do período escolhido.";
+  const list = document.querySelector("#health-period-alerts");
+  list.replaceChildren();
+  document.querySelector("#period-alert-count").textContent = alerts.length + (alerts.length === 1 ? " aviso" : " avisos");
+  document.querySelector("#period-alerts-empty").hidden = alerts.length > 0;
+  for (const alert of alerts) {
+    const item = document.createElement("li");
+    const name = document.createElement("strong");
+    name.textContent = alert.nome;
+    const details = document.createElement("span");
+    details.textContent = "Confirmado em " + new Date(alert.confirmado_em).toLocaleString("pt-BR") +
+      " · Condição observada desde " + new Date(alert.inicio_condicao).toLocaleString("pt-BR");
+    item.append(name, details);
+    list.append(item);
+  }
+}
+
+document.querySelector("#health-period-form").addEventListener("submit", event => {
+  event.preventDefault();
+  loadHealthHistory(true);
+});
 
 async function loadRuleCatalog() {
   const grid = document.querySelector("#rules-grid");

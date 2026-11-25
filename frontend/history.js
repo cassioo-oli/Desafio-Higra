@@ -3,6 +3,8 @@ const filterForm = document.querySelector("#filters");
 const machineSelect = document.querySelector("#machine");
 let page = 1;
 let requestNumber = 0;
+let healthRequestNumber = 0;
+let importedRows = [];
 
 async function getJson(url) {
   const response = await fetch(url);
@@ -31,11 +33,18 @@ function showTable(target, records) {
 
 async function loadReadings() {
   const currentRequest = ++requestNumber;
-  historyStatus.textContent = "Consultando histórico…";
+  const readingsTable = document.querySelector("#saved-readings");
   document.querySelector("#previous").disabled = true;
   document.querySelector("#next").disabled = true;
+  if (!machineSelect.value) {
+    readingsTable.replaceChildren();
+    historyStatus.textContent = "Selecione uma bomba no cabeçalho para consultar as leituras salvas.";
+    return;
+  }
+  readingsTable.replaceChildren();
+  historyStatus.textContent = "Consultando histórico…";
   const params = new URLSearchParams(new FormData(filterForm));
-  if (machineSelect.value) params.set("maquina", machineSelect.value);
+  params.set("maquina", machineSelect.value);
   params.set("pagina", page);
   try {
     const data = await getJson("/api/leituras?" + params);
@@ -59,16 +68,19 @@ async function refreshHistory() {
   try {
     const data = await getJson("/api/historico");
     const selected = machineSelect.value;
-    machineSelect.replaceChildren(new Option("Todas as bombas", ""));
+    machineSelect.replaceChildren(new Option("Selecione uma bomba…", ""));
     for (const name of data.bombas) machineSelect.add(new Option(name, name));
     if (data.bombas.includes(selected)) machineSelect.value = selected;
-    showTable(document.querySelector("#imports"), data.importacoes.map(item => ({
+    importedRows = data.importacoes.map(item => ({
       Arquivo: item.nome, Enviado: item.criado_em.replace("T", " "),
       Leituras: item.total, Novas: item.novas, Repetidas: item.repetidas,
       "Campos vazios": item.ausentes
-    })));
+    }));
+    document.querySelector("#imports-section").hidden = !machineSelect.value;
+    showTable(document.querySelector("#imports"), machineSelect.value ? importedRows : []);
     page = 1;
     await loadReadings();
+    await calculateHealth();
   } catch (error) {
     historyStatus.textContent = "Não foi possível carregar o histórico. " + error.message;
   }
@@ -91,8 +103,11 @@ window.addEventListener("importacao-concluida", refreshHistory);
 refreshHistory();
 machineSelect.addEventListener("change", () => {
   page = 1;
+  document.querySelector("#imports-section").hidden = !machineSelect.value;
+  showTable(document.querySelector("#imports"), machineSelect.value ? importedRows : []);
+  document.querySelector("#calculate-health").disabled = !machineSelect.value;
   loadReadings();
-  if (!document.querySelector("#painel-saude").hidden) calculateHealth();
+  calculateHealth();
 });
 
 function formatDelay(minutes, anchor) {
@@ -107,7 +122,7 @@ function formatDelay(minutes, anchor) {
 }
 
 async function evaluateEvents() {
-  const machine = machineSelect.value || machineSelect.options[1]?.value;
+  const machine = machineSelect.value;
   const button = document.querySelector("#evaluate-events");
   const status = document.querySelector("#evaluation-status");
   if (!machine) {
@@ -162,20 +177,34 @@ async function evaluateEvents() {
 document.querySelector("#evaluate-events").addEventListener("click", evaluateEvents);
 
 async function calculateHealth() {
-  const machine = machineSelect.value || machineSelect.options[1]?.value;
+  const currentRequest = ++healthRequestNumber;
+  const machine = machineSelect.value;
   const button = document.querySelector("#calculate-health");
   const status = document.querySelector("#health-status");
   if (!machine) {
-    status.textContent = "Importe as leituras e selecione uma bomba antes de calcular.";
+    button.disabled = true;
+    status.textContent = "Selecione uma bomba no cabeçalho para ver a avaliação.";
+    document.querySelector("#health-score").innerHTML = "— <small>/ 100</small>";
+    document.querySelector("#health-formula").textContent = "";
+    document.querySelector("#health-methodology").textContent = "Selecione uma bomba para ver os sinais e os motivos.";
+    document.querySelector("#health-discounts").replaceChildren();
+    document.querySelector("#active-zones").textContent = "Selecione uma bomba para ver avisos.";
+    window.pumpHealthAlerts = [];
+    window.dispatchEvent(new CustomEvent("pump-health-updated", {detail: []}));
+    updateHealthAlert("", null);
     return;
   }
   button.disabled = true;
   status.textContent = "Calculando a nota pelas regras persistentes…";
+  updateHealthAlert(machine, null);
+  window.pumpHealthAlerts = [];
+  window.dispatchEvent(new CustomEvent("pump-health-updated", {detail: []}));
   try {
     document.querySelector("#health-discounts").replaceChildren();
     document.querySelector("#health-score").textContent = "";
     document.querySelector("#active-zones").textContent = "Atualizando os avisos ativos…";
     const data = await getJson("/api/saude?" + new URLSearchParams({maquina: machine}));
+    if (currentRequest !== healthRequestNumber) return;
     document.querySelector("#health-score").textContent = data.nota === null
       ? "Nota indisponível"
       : data.nota + " / 100";
@@ -200,18 +229,55 @@ async function calculateHealth() {
     }
     window.pumpHealthAlerts = data.descontos;
     window.dispatchEvent(new CustomEvent("pump-health-updated", {detail: data.descontos}));
+    updateHealthAlert(machine, data);
     const asOf = data.snapshot_em ? " Referência até " + data.snapshot_em + "." : "";
     status.textContent = data.status + asOf + " " + data.lacunas_de_comunicacao +
       " intervalo(s) sem leitura foram mantidos como lacunas.";
   } catch (error) {
+    if (currentRequest !== healthRequestNumber) return;
     document.querySelector("#active-zones").textContent = "Não foi possível atualizar os avisos ativos.";
     window.pumpHealthAlerts = [];
     window.dispatchEvent(new CustomEvent("pump-health-updated", {detail: []}));
+    updateHealthAlert(machine, null);
     status.textContent = error.message;
   } finally {
-    button.disabled = false;
+    if (currentRequest === healthRequestNumber) button.disabled = false;
   }
 }
+
+function updateHealthAlert(machine, data) {
+  const banner = document.querySelector("#health-alert");
+  const detail = document.querySelector("#health-alert-detail");
+  const deductions = data?.descontos || [];
+  const signature = machine + ":" + deductions.map(item => item.regra).sort().join("|");
+  if (!deductions.length) {
+    banner.hidden = true;
+    banner.dataset.signature = "";
+    banner.dataset.dismissed = "";
+    return;
+  }
+  const points = deductions.reduce((total, item) => total + Number(item.pontos_descontados || 0), 0);
+  const rules = deductions.map(item => item.regra).join(", ");
+  detail.textContent = machine + " · " + rules + " · " + points + " ponto(s) descontado(s) na avaliação.";
+  if (banner.dataset.signature !== signature) {
+    banner.dataset.signature = signature;
+    banner.dataset.dismissed = "";
+    banner.classList.remove("alert-pulse");
+    void banner.offsetWidth;
+    banner.classList.add("alert-pulse");
+  }
+  banner.hidden = banner.dataset.dismissed === signature;
+}
+
+document.querySelector("#health-alert-go").addEventListener("click", () => {
+  document.querySelector('#tab-saude').click();
+  document.querySelector("#calculate-health").focus();
+});
+document.querySelector("#health-alert-dismiss").addEventListener("click", () => {
+  const banner = document.querySelector("#health-alert");
+  banner.dataset.dismissed = banner.dataset.signature;
+  banner.hidden = true;
+});
 
 document.querySelector("#calculate-health").addEventListener("click", calculateHealth);
 
@@ -233,9 +299,9 @@ async function loadRuleCatalog() {
 loadRuleCatalog();
 
 async function loadBaseline() {
-  const machine = machineSelect.value || machineSelect.options[1]?.value;
+  const machine = machineSelect.value;
   if (!machine) {
-    historyStatus.textContent = "Importe as leituras antes de calcular o funcionamento normal.";
+    document.querySelector("#baseline-status").textContent = "Selecione uma bomba no cabeçalho antes de calcular a referência.";
     return;
   }
   const start = document.querySelector("#baseline-start").value || "2026-06-01";

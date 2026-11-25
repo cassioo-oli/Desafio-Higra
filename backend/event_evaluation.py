@@ -472,3 +472,92 @@ def health_score(machine):
         "lacunas_de_comunicacao": missing_intervals,
         "nota_metodologica": "Pesos iguais e limiar de persistência são parâmetros iniciais de protótipo, não uma escala clínica ou de segurança validada pela Higra. Dados ausentes não reduzem a saúde da bomba; aparecem como lacunas de qualidade do dado.",
     }
+
+
+
+def health_history(machine, start=None, end=None):
+    """Resume a nota atual, a evolução diária e os alertas de um período."""
+    requested_start = datetime.strptime(start, "%Y-%m-%d").date() if start else None
+    requested_end = datetime.strptime(end, "%Y-%m-%d").date() if end else None
+    if requested_start and requested_end and requested_start > requested_end:
+        raise ValueError("A data inicial deve ser anterior à final.")
+
+    with database.connection() as db:
+        rows = db.execute(
+            "SELECT data,valores FROM leituras WHERE maquina=? AND data>=? ORDER BY data",
+            (machine, BASELINE_START + "T00:00:00"),
+        ).fetchall()
+    prepared = [(datetime.fromisoformat(row["data"]), json.loads(row["valores"])) for row in rows]
+    if not prepared:
+        raise ValueError("Não há leituras salvas para esta bomba.")
+
+    operating = [
+        (timestamp, values) for timestamp, values in prepared
+        if (values.get("Rotacao (rpm)") or 0) > 0
+    ]
+    if not operating:
+        return {
+            "maquina": machine, "nota_atual": None, "snapshot_em": None,
+            "periodo": {"inicio": None, "fim": None}, "serie": [],
+            "media_diaria": None, "minima_diaria": None, "dias_com_dados": 0,
+            "alertas_periodo": [],
+            "mensagem": "Não há leituras operacionais para calcular a evolução.",
+        }
+
+    current = health_score(machine)
+    replay_start = datetime.strptime(REPLAY_START, "%Y-%m-%d").date()
+    first_operating = operating[0][0].date()
+    last_operating = operating[-1][0].date()
+    earliest_day = max(replay_start, first_operating)
+    period_start = max(requested_start or earliest_day, earliest_day)
+    period_end = min(requested_end or last_operating, last_operating)
+
+    series = []
+    alerts_in_period = []
+    if period_start <= period_end:
+        operation_days = {timestamp.date() for timestamp, _ in operating}
+        next_row = 0
+        for day_offset in range((period_end - period_start).days + 1):
+            day = period_start + timedelta(days=day_offset)
+            while next_row < len(prepared) and prepared[next_row][0].date() <= day:
+                next_row += 1
+            if day not in operation_days or next_row == 0:
+                continue
+            alerts, _, active_rules = _calculate(
+                prepared[:next_row], replay_end=day.isoformat()
+            )
+            score = max(0, 100 - 25 * len(active_rules))
+            series.append({"data": day.isoformat(), "nota": score})
+
+        next_row = 0
+        while next_row < len(prepared) and prepared[next_row][0].date() <= period_end:
+            next_row += 1
+        if next_row:
+            alerts, _, _ = _calculate(
+                prepared[:next_row], replay_end=period_end.isoformat()
+            )
+            alerts_in_period = [
+                alert for alert in alerts
+                if period_start <= datetime.fromisoformat(alert["confirmado_em"]).date() <= period_end
+            ]
+
+    scores = [item["nota"] for item in series]
+    minimum = min(series, key=lambda item: item["nota"]) if series else None
+    return {
+        "maquina": machine,
+        "nota_atual": current["nota"],
+        "snapshot_em": current["snapshot_em"],
+        "periodo": {
+            "inicio": period_start.isoformat() if period_start <= period_end else None,
+            "fim": period_end.isoformat() if period_start <= period_end else None,
+        },
+        "serie": series,
+        "media_diaria": round(sum(scores) / len(scores), 1) if scores else None,
+        "minima_diaria": minimum,
+        "dias_com_dados": len(series),
+        "alertas_periodo": alerts_in_period,
+        "mensagem": (
+            "A média e a mínima consideram apenas dias com leituras da bomba em operação. "
+            "Dias sem dados não recebem uma nota."
+        ),
+    }

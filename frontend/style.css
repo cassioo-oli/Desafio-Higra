@@ -3,3 +3,25 @@
 @media(max-width:760px){.topbar{position:static;align-items:flex-start;gap:14px;flex-direction:column;padding:14px 5vw}.machine-picker{width:100%;justify-content:space-between}.machine-picker select{flex:1}.tabs{top:0;overflow:auto}.tab{min-width:100px;padding:10px 8px;font-size:13px}.hero{grid-template-columns:1fr}.hero-art{min-height:160px}.steps,.health-layout,.rule-grid,.upload-card{grid-template-columns:1fr}.pump-visual{min-height:180px}.pump-visual img,.pump-visual video{height:170px}.panel{padding-top:20px}.card,.steps article{padding:19px}.summary-grid{grid-template-columns:1fr}footer{flex-direction:column}}
 /* Visualizador 3D local da bomba */
 .pump-viewer{position:relative;height:360px;min-width:0;overflow:hidden;border:1px solid #dfe8ea;border-radius:17px;background:radial-gradient(ellipse at 50% 45%,#e5f3f7 0%,#d9e9ef 44%,#c9dce4 100%);isolation:isolate}.pump-viewer:before{position:absolute;inset:55% 0 0;z-index:-1;background:linear-gradient(transparent,#d5e3e780);content:""}.pump-viewer canvas{display:block;width:100%;height:100%;touch-action:none;cursor:grab;outline:none}.pump-viewer canvas:active{cursor:grabbing}.pump-viewer canvas:focus-visible{outline:3px solid #0d8176;outline-offset:-4px}.viewer-status{position:absolute;top:13px;left:14px;max-width:calc(100% - 28px);padding:7px 11px;border:1px solid #ffffffb0;border-radius:999px;background:#ffffffe0;color:#335057;font-size:12px;box-shadow:0 4px 14px #17343a10;pointer-events:none}.viewer-toolbar{position:absolute;right:12px;bottom:12px;left:12px;display:flex;justify-content:center;gap:8px}.viewer-toolbar button{margin:0;padding:8px 12px;border:1px solid #ffffffc0;background:#fffffff0;color:#23484d;font-size:12px;box-shadow:0 4px 14px #17343a18}.viewer-toolbar button:hover{background:#e1f2ed}.pump-fallback{width:100%;height:100%;padding:22px;object-fit:contain}.pump-legend{display:flex;align-items:center;flex-wrap:wrap;gap:12px 18px;padding:12px 2px 0;color:#60777c;font-size:12px}.pump-legend>span{display:inline-flex;align-items:center;gap:7px}.pump-legend #active-zones{color:#a52e2e;font-weight:650}.pump-legend i{display:inline-block;width:10px;height:10px;border-radius:50%}.legend-blue{background:#0d63cc}.legend-red{background:#d63c3c;box-shadow:0 0 0 4px #d63c3c20}.pump-card>.small{margin-bottom:0}.pump-card .small a{color:#176c67}@media(max-width:760px){.pump-viewer{height:300px}.viewer-toolbar button{padding:8px 9px;font-size:11px}.pump-legend{gap:8px 12px}}
+
+/* Identificação dos parceiros e aviso persistente acessível */
+.topbar{gap:28px;min-height:76px}
+.brand{flex:0 0 auto}
+.partner-logos{display:flex;align-items:center;gap:13px;margin:0 auto 0 8px;padding:8px 14px;border:1px solid #ffffff2b;border-radius:13px;background:#d9e9e6}
+.partner-logos img{display:block;width:auto;max-width:96px;height:25px;object-fit:contain;object-position:center;filter:drop-shadow(0 1px 1px #17343a12)}
+.machine-picker{flex:0 0 auto;gap:10px;padding:5px 6px 5px 12px;border:1px solid #ffffff1a;border-radius:12px;background:#ffffff0b;font-size:12px}
+.machine-picker select{min-width:205px;padding:9px 12px;border:1px solid #ffffff30;border-radius:8px}
+.health-alert{position:fixed;top:86px;left:50%;z-index:8;display:flex;align-items:center;gap:13px;width:min(760px,calc(100vw - 28px));padding:13px 15px;transform:translateX(-50%);border:1px solid #efb3aa;border-left:5px solid #c53636;border-radius:14px;background:#fff5f2;color:#622424;box-shadow:0 12px 36px #2b17172b}
+.health-alert[hidden]{display:none}
+.alert-mark{display:grid;flex:0 0 28px;place-items:center;width:28px;height:28px;border-radius:50%;background:#c53636;color:#fff;font-weight:800}
+.alert-copy{display:grid;gap:2px;flex:1;min-width:0;font-size:13px;line-height:1.4}
+.alert-copy strong{font-size:14px}
+.alert-action{flex:none;padding:9px 12px;background:#9f2929;color:#fff;font-size:13px}
+.alert-action:hover{background:#812020}
+.alert-dismiss{flex:none;padding:3px 8px;background:transparent;color:#702d2d;font-size:23px;line-height:1}
+.alert-pulse{animation:alert-arrive .55s ease-out 3}
+@keyframes alert-arrive{50%{box-shadow:0 0 0 7px #d4474733,0 12px 36px #2b17172b}}
+.hero{grid-template-columns:1fr}
+@media(max-width:760px){.topbar{display:grid;grid-template-columns:1fr auto;align-items:center;gap:12px 18px;padding:13px 5vw}.partner-logos{grid-column:2;grid-row:1;justify-self:end;margin:0;padding:6px 9px;gap:8px}.partner-logos img{max-width:74px;height:20px}.machine-picker{grid-column:1/-1;grid-row:2;display:flex;width:100%;justify-content:space-between;padding:0;border:0;background:transparent}.machine-picker select{flex:1;min-width:0}.health-alert{top:8px;align-items:flex-start;gap:9px;padding:11px}.alert-action{align-self:center;padding:8px;font-size:12px}.alert-copy{font-size:12px}.alert-copy strong{font-size:13px}}
+@media(max-width:430px){.health-alert{flex-wrap:wrap}.alert-copy{flex:1 1 calc(100% - 45px)}.alert-action{margin-left:37px}.alert-dismiss{margin-left:auto}.brand small{font-size:11px}}
+@media(prefers-reduced-motion:reduce){.alert-pulse{animation:none}html{scroll-behavior:auto}}

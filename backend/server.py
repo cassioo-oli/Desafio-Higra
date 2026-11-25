@@ -110,6 +110,7 @@ class Handler(SimpleHTTPRequestHandler):
                 if not machine:
                     raise ValueError("Selecione uma bomba para calcular a nota de saúde.")
                 self.respond_json(event_evaluation.health_score(machine))
+<<<<<<< HEAD
             elif url.path == "/api/saude-historico":
                 params = parse_qs(url.query)
                 machine = params.get("maquina", [""])[0]
@@ -118,6 +119,16 @@ class Handler(SimpleHTTPRequestHandler):
                 self.respond_json(event_evaluation.health_history(
                     machine, params.get("inicio", [None])[0], params.get("fim", [None])[0]
                 ))
+=======
+            elif url.path == "/api/saude/historico":
+                params = parse_qs(url.query)
+                machine = params.get("maquina", [""])[0]
+                if not machine:
+                    raise ValueError("Selecione uma bomba para consultar a evolução.")
+                self.respond_json(event_evaluation.health_history(
+                    machine, params.get("inicio", [None])[0],
+                    params.get("fim", [None])[0]))
+>>>>>>> f78583c29bad4f4ad59f84f2df03c4a49e3a8561
             else:
                 super().do_GET()
         except ValueError as exc:

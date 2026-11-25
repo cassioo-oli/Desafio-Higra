@@ -82,7 +82,11 @@ async function refreshHistory() {
     page = 1;
     await loadReadings();
     await calculateHealth();
+<<<<<<< HEAD
     if (machineSelect.value) await loadHealthHistory();
+=======
+    await loadHealthHistory();
+>>>>>>> f78583c29bad4f4ad59f84f2df03c4a49e3a8561
   } catch (error) {
     historyStatus.textContent = "Não foi possível carregar o histórico. " + error.message;
   }
@@ -459,3 +463,145 @@ async function loadBaseline() {
 }
 document.querySelector("#calculate-baseline").addEventListener("click", loadBaseline);
 
+
+
+const healthPeriodForm = document.querySelector("#health-period-filters");
+healthPeriodForm.addEventListener("submit", event => {
+  event.preventDefault();
+  loadHealthHistory();
+});
+machineSelect.addEventListener("change", loadHealthHistory);
+
+async function loadHealthHistory() {
+  const request = ++healthHistoryRequestNumber;
+  const machine = machineSelect.value;
+  const status = document.querySelector("#health-history-status");
+  if (!machine) {
+    status.textContent = "Selecione uma bomba para consultar a evolução.";
+    document.querySelector("#health-daily-average").textContent = "—";
+    document.querySelector("#health-daily-minimum").textContent = "—";
+    document.querySelector("#health-daily-minimum-date").textContent = "";
+    document.querySelector("#health-period-alerts").replaceChildren();
+    document.querySelector("#health-history-method").textContent = "";
+    drawHealthChart([]);
+    return;
+  }
+  status.textContent = "Calculando a evolução diária…";
+  const params = new URLSearchParams({maquina: machine});
+  const start = document.querySelector("#health-start").value;
+  const end = document.querySelector("#health-end").value;
+  if (start) params.set("inicio", start);
+  if (end) params.set("fim", end);
+  try {
+    const data = await getJson("/api/saude/historico?" + params);
+    if (request !== healthHistoryRequestNumber) return;
+    const period = data.periodo;
+    document.querySelector("#health-daily-average").textContent =
+      data.media_diaria === null ? "—" : data.media_diaria.toLocaleString("pt-BR") + " / 100";
+    const minimum = data.minima_diaria;
+    document.querySelector("#health-daily-minimum").textContent =
+      minimum ? minimum.nota + " / 100" : "—";
+    document.querySelector("#health-daily-minimum-date").textContent =
+      minimum ? "Em " + formatHealthDate(minimum.data) : "";
+    drawHealthChart(data.serie);
+    renderPeriodAlerts(data.alertas_periodo);
+    document.querySelector("#health-history-method").textContent = data.mensagem || "";
+    if (!data.dias_com_dados) {
+      status.textContent = data.mensagem || "Não há dias com dados nesse período.";
+      return;
+    }
+    status.textContent = machine + " · " + formatHealthDate(period.inicio) + " a " +
+      formatHealthDate(period.fim) + " · " + data.dias_com_dados +
+      (data.dias_com_dados === 1 ? " dia com dados operacionais." : " dias com dados operacionais.");
+  } catch (error) {
+    if (request !== healthHistoryRequestNumber) return;
+    status.textContent = error.message;
+    document.querySelector("#health-daily-average").textContent = "—";
+    document.querySelector("#health-daily-minimum").textContent = "—";
+    document.querySelector("#health-daily-minimum-date").textContent = "";
+    document.querySelector("#health-period-alerts").replaceChildren();
+    drawHealthChart([]);
+  }
+}
+
+function formatHealthDate(value) {
+  if (!value) return "—";
+  return new Date(value + "T00:00:00").toLocaleDateString("pt-BR");
+}
+
+function renderPeriodAlerts(alerts) {
+  const list = document.querySelector("#health-period-alerts");
+  list.replaceChildren();
+  if (!alerts.length) {
+    const item = document.createElement("li");
+    item.className = "period-alert-empty";
+    item.textContent = "Nenhum alerta foi confirmado no período selecionado.";
+    list.append(item);
+    return;
+  }
+  for (const alert of alerts) {
+    const item = document.createElement("li");
+    item.className = "period-alert";
+    const title = document.createElement("strong");
+    title.textContent = alert.falha;
+    const date = document.createElement("time");
+    date.dateTime = alert.confirmado_em;
+    date.textContent = "Confirmado em " + new Date(alert.confirmado_em).toLocaleString("pt-BR");
+    const description = document.createElement("span");
+    description.textContent = alert.previsto;
+    item.append(title, date, description);
+    list.append(item);
+  }
+}
+
+function drawHealthChart(series) {
+  const svg = document.querySelector("#health-chart");
+  svg.replaceChildren();
+  const svgNS = "http://www.w3.org/2000/svg";
+  const make = (tag, attributes = {}, text = "") => {
+    const element = document.createElementNS(svgNS, tag);
+    for (const [key, value] of Object.entries(attributes)) element.setAttribute(key, value);
+    if (text) element.textContent = text;
+    return element;
+  };
+  svg.append(
+    make("title", {id:"health-chart-title"}, "Evolução diária da nota de saúde"),
+    make("desc", {id:"health-chart-description"}, "Nota diária de zero a cem no período selecionado.")
+  );
+  if (!series.length) {
+    svg.append(make("text", {x:380,y:142,"text-anchor":"middle",class:"chart-empty"},
+      "Sem dias com leitura operacional neste período."));
+    return;
+  }
+  const left = 54, right = 18, top = 20, bottom = 46, width = 760, height = 280;
+  const plotWidth = width - left - right, plotHeight = height - top - bottom;
+  for (const value of [0,25,50,75,100]) {
+    const y = top + (100 - value) / 100 * plotHeight;
+    svg.append(
+      make("line", {x1:left,y1:y,x2:width-right,y2:y,class:"chart-grid"}),
+      make("text", {x:left-10,y:y+4,"text-anchor":"end",class:"chart-axis-label"}, String(value))
+    );
+  }
+  const points = series.map((item, index) => ({
+    item,
+    x: series.length === 1 ? left + plotWidth / 2 : left + index * plotWidth / (series.length - 1),
+    y: top + (100 - item.nota) / 100 * plotHeight,
+  }));
+  svg.append(make("polyline", {
+    points: points.map(point => point.x + "," + point.y).join(" "),
+    class:"chart-line"
+  }));
+  for (const point of points) {
+    const dot = make("circle", {cx:point.x,cy:point.y,r:4,class:"chart-point"});
+    dot.append(make("title", {}, formatHealthDate(point.item.data) + ": " + point.item.nota + " / 100"));
+    svg.append(dot);
+  }
+  const labelIndexes = [...new Set([0, Math.floor((series.length - 1) / 2), series.length - 1])];
+  for (const index of labelIndexes) {
+    const point = points[index];
+    svg.append(make("text", {
+      x:point.x,y:height-14,"text-anchor":index===0?"start":index===series.length-1?"end":"middle",
+      class:"chart-axis-label"
+    }, formatHealthDate(point.item.data)));
+  }
+}

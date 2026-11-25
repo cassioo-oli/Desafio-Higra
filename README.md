@@ -40,6 +40,10 @@ Na base local atual, a reprodução encontrou aviso antes do limiar nos quatro e
 
 ### Nota de saúde
 
+A aba Saúde mostra a nota atual e também a evolução diária no período selecionado, com média, mínima diária, gráfico e alertas confirmados. Os cálculos usam apenas dias com leituras operacionais; dias sem dados não recebem uma nota.
+
+O endpoint `/api/saude/historico` aceita `maquina` e os filtros opcionais `inicio` e `fim` no formato `AAAA-MM-DD`.
+
 O botão **Calcular nota de saúde** mostra a nota na última leitura em que a bomba estava ligada. A fórmula provisória começa em 100 e desconta 25 pontos por regra de falha persistente ativa, com limite de 0 a 100. A tabela identifica a regra, os sensores envolvidos, o motivo e quando o aviso começou. A nota usa as regras persistentes descritas acima; leituras com motor desligado não contam como condição de falha e lacunas de dados não reduzem a nota.
 
 Na base local, a última leitura operacional é de 30/06/2026 às 23:59. O alerta de desgaste/entupimento ainda está ativo, então a nota exibida é 75/100, com desconto de 25 pontos para vazão, pressão e rendimento. Os pontos iguais por regra são uma escala inicial de demonstração, não um peso de severidade aprovado pela Higra. A equipe deve validar essa escala com especialistas antes de usá-la para decisões de manutenção.

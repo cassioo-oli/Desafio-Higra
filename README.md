@@ -24,13 +24,13 @@ O histórico permite filtrar bomba e datas, com 50 leituras por página. A lista
 
 ### Funcionamento normal
 
-O painel calcula a referência por bomba entre 01/06/2026 e 08/06/2026. Inclui somente registros com Rotacao (rpm) maior que zero, usando as leituras completas guardadas no banco. Assim as noites em que a bomba ficou desligada não puxam a média dos sensores para baixo. Mostra quantidade válida, média, mínimo, máximo, amplitude e variância populacional. Os pesos vêm do documento Higra e são parâmetros iniciais.
+Na seção **Comparar avisos com os eventos**, escolha uma janela de referência dentro das datas disponíveis para a bomba. O sistema sugere os primeiros oito dias do histórico; você pode selecionar manualmente outro período mais representativo de operação normal. A escolha é salva por bomba no SQLite. A referência usa somente leituras com `Rotacao (rpm) > 100`, para excluir períodos desligados, e mostra quantidade válida, média, mínimo, máximo, amplitude e variância populacional. Os pesos vêm do documento Higra e são parâmetros iniciais.
 
-O arquivo higra.xlsx contém resumos prontos nas abas ligada e ligada e desligada. Eles não substituem o cálculo da janela de 01 a 08 de junho, porque cobrem outro recorte. A aba Sheet1 está vazia.
+O arquivo higra.xlsx contém resumos prontos nas abas ligada e ligada e desligada. Eles não substituem o cálculo da janela de referência selecionada, porque cobrem outro recorte. A aba Sheet1 está vazia.
 
 ### Validação dos avisos
 
-O botão **Comparar avisos com eventos** reproduz as leituras entre 09 e 30/06/2026 em ordem cronológica. A referência é calculada apenas com leituras em que `Rotacao (rpm) > 0`, entre 01 e 08/06. Nenhum cálculo do detector consulta a coluna `Alarme`, o gabarito ou leituras futuras. O calendário dos quatro eventos só é usado depois para medir o resultado.
+O botão **Atualizar comparação** reproduz em ordem cronológica os dados posteriores ao fim da referência selecionada, até a última leitura disponível. Nenhum cálculo do detector consulta a coluna `Alarme`, o gabarito ou leituras futuras. O calendário dos quatro eventos conhecidos da amostra original só é usado depois para medir o resultado. Em CSVs sem eventos anotados para o período, a tela mostra os avisos, mas informa que não é possível medir antecedência real ou falsos alarmes.
 
 As regras iniciais exigem sinais combinados e persistência. Cavitação usa vibração alta junto de oscilação recente de vazão e pressão, para filtrar um pico único. Desbalanceamento compara tensão, corrente e temperatura da fase S com as fases R/T. Mancal combina temperatura radial, diferença radial-axial e vibração contra referências por hora. Rotor/entupimento exige três horas operacionais seguidas com vazão abaixo de 97% da referência horária, pressão abaixo de 99,5% e rendimento pelo menos 2 pontos menor. Horas com menos de 30 leituras operacionais não são avaliadas.
 
@@ -40,26 +40,39 @@ Na base local atual, a reprodução encontrou aviso antes do limiar nos quatro e
 
 ### Nota de saúde
 
-A aba Saúde mostra a nota atual e também a evolução diária no período selecionado, com média, mínima diária, gráfico e alertas confirmados. Os cálculos usam apenas dias com leituras operacionais; dias sem dados não recebem uma nota.
+A aba Saúde mostra a nota atual e também a evolução diária no período selecionado, com média, mínima diária, gráfico e avisos identificados. Os cálculos usam apenas dias com leituras operacionais; dias sem dados não recebem uma nota.
 
 O endpoint `/api/saude/historico` aceita `maquina` e os filtros opcionais `inicio` e `fim` no formato `AAAA-MM-DD`.
 
-O botão **Calcular nota de saúde** mostra a nota na última leitura em que a bomba estava ligada. A fórmula provisória começa em 100 e desconta 25 pontos por regra de falha persistente ativa, com limite de 0 a 100. A tabela identifica a regra, os sensores envolvidos, o motivo e quando o aviso começou. A nota usa as regras persistentes descritas acima; leituras com motor desligado não contam como condição de falha e lacunas de dados não reduzem a nota.
+O botão **Atualizar avaliação** recalcula a nota na última leitura disponível. A fórmula começa em 100 e subtrai os pontos das ocorrências confirmadas ainda ativas, limitada a 0–100. O painel acompanha cinco grupos priorizados: cavitação (regra 1), mancal (regra 2), rotor confirmado (regra 6), correntes por fase (regra 8) e tensões por fase (regra 9). As demais regras do documento não aparecem na nota nem no painel de saúde. A tabela mostra a condição, o estado, os sinais, o peso por sinal, o desconto realmente aplicado e a explicação da regra.
 
-Na base local, a última leitura operacional é de 30/06/2026 às 23:59. O alerta de desgaste/entupimento ainda está ativo, então a nota exibida é 75/100, com desconto de 25 pontos para vazão, pressão e rendimento. Os pontos iguais por regra são uma escala inicial de demonstração, não um peso de severidade aprovado pela Higra. A equipe deve validar essa escala com especialistas antes de usá-la para decisões de manutenção.
+As cinco regras de saúde vêm do documento Regras. Usam a janela de referência escolhida para a bomba; as avaliações e o gráfico começam no dia seguinte e usam apenas leituras disponíveis até cada dia. Novos CSVs são acrescentados ao banco; confira e ajuste o período de referência quando importar dados de outro intervalo. Para cavitação e rotor, quando a descrição apresenta uma faixa de pontos e a tabela informa um valor fechado, o protótipo usa provisoriamente os valores explícitos da tabela: 35 e 20 pontos. O mancal desconta 20 pontos. Corrente anormal desconta 6 pontos por fase detectada (até 18) e tensão anormal desconta 5 por fase (até 15). As fases continuam visíveis como sinais separados, para explicar cada desconto; fases da mesma família detectadas em até cinco minutos aparecem agrupadas visualmente, mantendo o desconto de cada fase. O tempo mostrado na Saúde mede quanto o sinal persistiu antes da confirmação do critério, não quanto antes da falha física. A antecedência real é calculada separadamente na comparação com os eventos rotulados. O pré-alerta de tendência do rotor é mantido internamente para confirmar a regra 6, mas não aparece como uma sexta regra e não desconta pontos. A nota diária e o gráfico são reproduzidos por data em ordem cronológica e só usam leituras até aquele dia; leituras originais não são alteradas.
+
+A comparação com os quatro eventos conhecidos continua sendo uma avaliação separada do detector do desafio. Os pesos da saúde não mudam os registros brutos nem são uma escala clínica validada pela Higra. Revise limiares e pesos com a equipe antes de usar o indicador em decisões de manutenção.
 
 ### Organização
 
 - backend/server.py recebe as requisições e lê CSV/Excel.
 - backend/database.py valida os valores, salva e consulta o SQLite.
-- backend/event_evaluation.py calcula referências e avalia os alertas da amostra sem usar datas futuras.
+- backend/event_evaluation.py compara os avisos do desafio com os quatro eventos conhecidos.
+- backend/health_rules.py reproduz as cinco regras de saúde priorizadas e calcula os descontos sem alterar as leituras.
+- backend/health_service.py prepara as respostas da nota atual e do histórico diário.
 - frontend/app.js controla o envio e a prévia.
 - frontend/history.js controla filtros, histórico e paginação.
 - A seção Validação dos avisos compara os resultados com os quatro eventos e conta falsos positivos.
-- A seção Nota de saúde mostra a nota e explica a regra persistente e os sensores que geraram cada desconto.
+- A seção Nota de saúde distingue pré-alertas, condições confirmadas e avisos informativos, explicando os sinais e os pontos aplicados.
 - backend/pump_guardian.db é criado automaticamente e ignorado pelo Git.
 
-### Conferência manual
+### Ocorrências, paradas e períodos
+
+- A rotação deve estar acima de 100 rpm para avaliar novos sinais. Rotação ausente ou até 100 rpm suspende a avaliação, mesmo que haja vazão residual.
+- Um aviso confirmado permanece aberto durante paradas e lacunas. Repetir a mesma condição não cria outro desconto. A recuperação exige 6 horas de avaliações normais consecutivas em operação; uma parada reinicia essa contagem. Normalização dos sensores não é comprovação de manutenção realizada.
+- Candidatos interrompidos antes da confirmação não aparecem no histórico de ocorrências. Candidatos atuais ficam recolhidos em **Sinais em observação**, sem desconto.
+- O histórico mostra um cartão por condição. Os detalhes preservam as fases, confirmações e normalizações reais. Corrente e tensão continuam descontando por fase; episódios antigos não somam novos descontos ao atual.
+- **Dados importados**, **Referência** e **Período avaliado** aparecem separadamente. Com referência de 1 a 8, a análise começa no dia 9. A aba Dados abre nesse recorte e permite consultar também o arquivo completo, sem apagar leituras.
+- Os testes de regressão ficam em `backend/tests/test_health_lifecycle.py`. Execute `python -m unittest discover -s backend/tests -v`.
+
+### Conferência na aplicação
 
 1. Abra o iniciador e envie a planilha.
 2. Veja o resumo de novas leituras e consulte o Histórico salvo.

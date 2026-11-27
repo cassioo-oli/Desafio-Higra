@@ -11,22 +11,28 @@
 .partner-logos img{display:block;width:auto;max-width:96px;height:25px;object-fit:contain;object-position:center;filter:drop-shadow(0 1px 1px #17343a12)}
 .machine-picker{flex:0 0 auto;gap:10px;padding:5px 6px 5px 12px;border:1px solid #ffffff1a;border-radius:12px;background:#ffffff0b;font-size:12px}
 .machine-picker select{min-width:205px;padding:9px 12px;border:1px solid #ffffff30;border-radius:8px}
-.health-alert{position:fixed;top:86px;left:50%;z-index:8;display:flex;align-items:center;gap:13px;width:min(760px,calc(100vw - 28px));padding:13px 15px;transform:translateX(-50%);border:1px solid #efb3aa;border-left:5px solid #c53636;border-radius:14px;background:#fff5f2;color:#622424;box-shadow:0 12px 36px #2b17172b}
+.health-alert{position:fixed;top:88px;left:50%;z-index:8;display:flex;align-items:center;gap:15px;width:min(940px,calc(100vw - 28px));padding:17px 19px;transform:translateX(-50%);border:2px solid #e9aaa3;border-left:9px solid #bb2727;border-radius:17px;background:linear-gradient(112deg,#fff0ed,#fff9f7);color:#5e1e1e;box-shadow:0 18px 50px #44171738,0 0 0 5px #c5363612;backdrop-filter:blur(10px)}
 .health-alert[hidden]{display:none}
-.alert-mark{display:grid;flex:0 0 28px;place-items:center;width:28px;height:28px;border-radius:50%;background:#c53636;color:#fff;font-weight:800}
-.alert-copy{display:grid;gap:2px;flex:1;min-width:0;font-size:13px;line-height:1.4}
-.alert-copy strong{font-size:14px}
-.alert-action{flex:none;padding:9px 12px;background:#9f2929;color:#fff;font-size:13px}
-.alert-action:hover{background:#812020}
+.health-alert.is-watch{border-color:#edcf89;border-left-color:#bd7600;background:linear-gradient(112deg,#fff7df,#fffdf7);color:#553c12;box-shadow:0 18px 50px #47320824,0 0 0 5px #e8a91a17}
+.health-alert.is-clear{border-color:#abd8c5;border-left-color:#158267;background:linear-gradient(112deg,#eaf8f1,#fafffc);color:#174b3e;box-shadow:0 15px 40px #144a351f,0 0 0 5px #20a17812}
+.health-alert.is-error{border-color:#d5b7e8;border-left-color:#7650a4;background:linear-gradient(112deg,#f7effc,#fdfaff);color:#3f2a58}
+.health-alert.is-loading{border-color:#b3d4e1;border-left-color:#24769a;background:linear-gradient(112deg,#edf7fc,#fbfeff);color:#214e63}
+.alert-mark{display:grid;flex:0 0 44px;place-items:center;width:44px;height:44px;border:2px solid #fff;border-radius:14px;background:#bb2727;color:#fff;font-size:23px;font-weight:900;box-shadow:0 4px 12px #57151538}
+.is-watch .alert-mark{background:#bd7600}.is-clear .alert-mark{background:#158267}.is-error .alert-mark{background:#7650a4}.is-loading .alert-mark{background:#24769a}
+.alert-copy{display:grid;gap:3px;flex:1;min-width:0;font-size:14px;line-height:1.45}
+.alert-kicker{font-size:10px;font-weight:850;letter-spacing:.13em;opacity:.75}
+.alert-copy strong{font-size:17px;line-height:1.25}
+.alert-action{flex:none;padding:11px 15px;border-radius:11px;background:#a82323;color:#fff;font-size:13px;box-shadow:0 5px 13px #57151528}
+.alert-action:hover{background:#7f1919;filter:none}
+.is-watch .alert-action{background:#986000}.is-clear .alert-action{background:#126b55}.is-error .alert-action{background:#67418e}.is-loading .alert-action{background:#205f7e}
 .alert-dismiss{flex:none;padding:3px 8px;background:transparent;color:#702d2d;font-size:23px;line-height:1}
-.alert-pulse{animation:alert-arrive .55s ease-out 3}
-@keyframes alert-arrive{50%{box-shadow:0 0 0 7px #d4474733,0 12px 36px #2b17172b}}
+.alert-pulse{animation:alert-arrive .7s ease-out 3}
+@keyframes alert-arrive{50%{box-shadow:0 0 0 10px #d4474740,0 18px 50px #44171738}}
 .hero{grid-template-columns:1fr}
-@media(max-width:760px){.topbar{display:grid;grid-template-columns:1fr auto;align-items:center;gap:12px 18px;padding:13px 5vw}.partner-logos{grid-column:2;grid-row:1;justify-self:end;margin:0;padding:6px 9px;gap:8px}.partner-logos img{max-width:74px;height:20px}.machine-picker{grid-column:1/-1;grid-row:2;display:flex;width:100%;justify-content:space-between;padding:0;border:0;background:transparent}.machine-picker select{flex:1;min-width:0}.health-alert{top:8px;align-items:flex-start;gap:9px;padding:11px}.alert-action{align-self:center;padding:8px;font-size:12px}.alert-copy{font-size:12px}.alert-copy strong{font-size:13px}}
-@media(max-width:430px){.health-alert{flex-wrap:wrap}.alert-copy{flex:1 1 calc(100% - 45px)}.alert-action{margin-left:37px}.alert-dismiss{margin-left:auto}.brand small{font-size:11px}}
+@media(max-width:760px){.topbar{display:grid;grid-template-columns:1fr auto;align-items:center;gap:12px 18px;padding:13px 5vw}.partner-logos{grid-column:2;grid-row:1;justify-self:end;margin:0;padding:6px 9px;gap:8px}.partner-logos img{max-width:74px;height:20px}.machine-picker{grid-column:1/-1;grid-row:2;display:flex;width:100%;justify-content:space-between;padding:0;border:0;background:transparent}.machine-picker select{flex:1;min-width:0}.health-alert{top:8px;align-items:flex-start;gap:10px;padding:12px}.alert-mark{flex-basis:36px;width:36px;height:36px;font-size:20px}.alert-copy{font-size:12px}.alert-copy strong{font-size:15px}.alert-action{align-self:center;padding:9px;font-size:12px}}
+@media(max-width:430px){.health-alert{flex-wrap:wrap}.alert-copy{flex:1 1 calc(100% - 50px)}.alert-action{margin-left:46px}.alert-dismiss{margin-left:auto}.brand small{font-size:11px}}
 @media(prefers-reduced-motion:reduce){.alert-pulse{animation:none}html{scroll-behavior:auto}}
 
-<<<<<<< HEAD
 /* Evolução diária da saúde da bomba */
 .trend-card{padding:clamp(18px,3vw,28px)}
 .trend-card>.card-top{margin-bottom:18px}
@@ -43,12 +49,18 @@
 .chart-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:18px 0 8px}
 .chart-heading h3{margin:0;font-size:16px}
 .chart-heading>span{color:var(--muted);font-size:12px}
+.chart-help{margin:0 0 10px;color:var(--muted);font-size:14px;line-height:1.55}
 .health-chart-wrap{overflow:hidden;border:1px solid var(--line);border-radius:14px;background:linear-gradient(180deg,#fbfdfc,#f5faf8)}
 #health-chart{display:block;width:100%;height:auto;min-height:220px}
 .chart-gridline{stroke:#dce8e4;stroke-width:1}
 .chart-axis-label{fill:#718581;font:12px "Segoe UI",Arial,sans-serif}
 .chart-line{fill:none;stroke:#168a72;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
 .chart-point{fill:#168a72;stroke:#fff;stroke-width:2}
+.chart-point.is-normal,.chart-legend-point.is-normal{fill:#168a72;background:#168a72}
+.chart-point.is-alert,.chart-legend-point.is-alert{fill:#c84a42;background:#c84a42}
+.chart-legend{display:flex;flex-wrap:wrap;gap:10px 18px;margin-top:10px;color:var(--muted);font-size:12px}
+.chart-legend span{display:inline-flex;align-items:center;gap:7px}
+.chart-legend-point{display:inline-block;width:10px;height:10px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px #d9e4e0}
 .chart-empty{fill:#718581;font:15px "Segoe UI",Arial,sans-serif}
 .period-alerts{margin-top:22px}
 #health-period-alerts{display:grid;gap:9px;margin:10px 0;padding:0;list-style:none}
@@ -57,27 +69,84 @@
 #health-period-alerts li span{color:var(--muted);font-size:12px}
 #period-alerts-empty{margin:10px 0;padding:13px;border-radius:10px;background:#f4f8f6;font-size:13px}
 @media(max-width:760px){.health-summary{grid-template-columns:1fr}.health-summary article{min-height:84px}.health-period-form{align-items:stretch}.health-period-form label{flex:1 1 145px}.health-period-form input{min-width:0;width:100%}.health-period-form button{width:100%}.chart-heading{align-items:flex-start;flex-direction:column;gap:4px}#health-chart{min-height:190px}}
-=======
-/* Evolução diária da nota de saúde */
-.health-history-card{padding:24px}
-.health-period-filters{margin:4px 0 10px}
-.health-metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:18px 0}
-.health-metric{display:grid;gap:3px;padding:15px 17px;border:1px solid var(--line);border-radius:13px;background:#f7faf8}
-.health-metric span{color:var(--muted);font-size:13px}
-.health-metric strong{color:var(--teal);font-size:27px;line-height:1.2}
-.health-metric small{color:var(--muted)}
-.health-chart-wrap{width:100%;overflow-x:auto;border:1px solid var(--line);border-radius:14px;background:linear-gradient(180deg,#fff,#f8fbf9)}
-#health-chart{display:block;width:100%;min-width:540px;height:auto;max-height:320px}
-.chart-grid{stroke:#e1ebe6;stroke-width:1}
-.chart-axis-label{fill:#63777a;font:12px "Segoe UI",Arial,sans-serif}
-.chart-line{fill:none;stroke:#0d7770;stroke-width:3;stroke-linejoin:round;stroke-linecap:round}
-.chart-point{fill:#fff;stroke:#0d7770;stroke-width:3}
-.chart-empty{fill:#63777a;font:14px "Segoe UI",Arial,sans-serif}
-.period-alert-heading{margin:22px 0 10px}
-.period-alert-list{display:grid;gap:9px;margin:0;padding:0;list-style:none}
-.period-alert,.period-alert-empty{display:grid;gap:4px;padding:13px 15px;border:1px solid var(--line);border-radius:12px;background:#fbfdfc}
-.period-alert{border-left:4px solid #d18a37}
-.period-alert strong{color:#744817}
-.period-alert time,.period-alert span{color:var(--muted);font-size:13px}
-@media(max-width:600px){.health-history-card{padding:18px}.health-metrics{grid-template-columns:1fr}#health-chart{min-width:500px}}
->>>>>>> f78583c29bad4f4ad59f84f2df03c4a49e3a8561
+
+/* Sinais de saúde resumidos por ocorrência */
+.signal-list{display:grid;gap:10px;margin-top:14px}
+.signal-item{padding:14px 16px;border:1px solid var(--line);border-left:4px solid #cf7364;border-radius:12px;background:linear-gradient(120deg,#fff,#fbfdfc)}
+.signal-item-header{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.signal-item-header strong{font-size:15px}
+.signal-state{flex:none;padding:4px 9px;border-radius:999px;background:#f1f3ed;color:#54665e;font-size:12px;font-weight:750}
+.signal-state.is-warning{background:#fff0ed;color:#a6312d}
+.signal-item-signals{margin:6px 0;color:var(--teal);font-size:13px;font-weight:700}
+.signal-item-meta{margin:4px 0;color:var(--muted);font-size:12px}
+.signal-reason{margin-top:7px;color:var(--muted);font-size:12px}
+.signal-reason summary{width:max-content;cursor:pointer;color:#28685c;font-weight:700}
+.signal-reason p{margin:5px 0 0}
+.period-alert-toggle{margin:4px 0 0;padding:8px 12px;border:1px solid var(--line);background:#f4f8f6;color:#28685c;font-size:12px}
+#health-period-alerts li.is-collapsed{display:none}
+@media(max-width:560px){.signal-item-header{align-items:flex-start;flex-direction:column;gap:5px}.signal-item{padding:12px}}
+.inline-link{margin-left:5px;padding:0;border:0;background:transparent;color:#176c67;font-size:inherit;text-decoration:underline;text-underline-offset:2px}.inline-link:hover{background:transparent;color:#104944}
+
+/* Hierarquia da saúde: período, condição atual e histórico por problema. */
+.period-overview{display:grid;grid-template-columns:repeat(3,1fr) auto;align-items:center;gap:18px;padding:18px 22px;margin:0 0 16px;border:1px solid var(--line);border-radius:16px;background:#fff}
+.period-overview[hidden]{display:none}
+.period-overview>div{display:grid;gap:5px;border-right:1px solid var(--line);padding-right:12px}
+.period-overview span{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:700}
+.period-overview strong{font-size:13px;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.period-overview .is-analysis strong{color:var(--teal)}
+.period-overview button{padding:9px 12px;font-size:12px}
+.health-layout{grid-template-columns:.8fr 1.2fr;align-items:stretch}
+.health-layout>.card{margin:0 0 18px}
+.score-card{background:linear-gradient(145deg,#ffffff,#edf7f3)}
+.score-card .score{font-size:clamp(46px,5vw,68px);letter-spacing:-.055em;margin:24px 0 14px}
+.score-card #health-status{font-size:13px;line-height:1.6;max-width:35ch}
+.score-card #health-formula{margin-top:auto;padding-top:15px;border-top:1px solid #d5e5df;width:100%}
+.pump-viewer{height:275px}
+.model-note{color:var(--muted);font-size:12px;margin-top:10px}
+.model-note summary{cursor:pointer}
+.active-issues{margin-top:0}
+.active-issues .signal-list{grid-template-columns:repeat(2,minmax(0,1fr));align-items:start}
+.active-issues .signal-item{padding:18px;background:#fffaf7;border-color:#f0dfd5;border-left:3px solid #bd7049;box-shadow:none}
+.active-issues .signal-item-header{align-items:start}
+.active-issues .signal-state{font-size:11px}
+.empty-state{margin:0;padding:18px;border-radius:12px;background:#eff7f3;color:#31735f;grid-column:1/-1}
+.pill.is-stopped{background:#eff0f2;color:#56646d}
+#observations-panel{padding:14px 16px;border:1px solid #ece3ce;border-radius:12px;background:#fffcf5;font-size:13px}
+#health-observations p{margin:7px 0;color:#785f34}
+#health-period-alerts{grid-template-columns:repeat(2,minmax(0,1fr));align-items:start;gap:12px}
+#health-period-alerts .occurrence-card{background:#fff;border:1px solid #e2e9e6;border-top:3px solid #c47859;padding:16px;border-radius:12px;gap:9px;min-width:0}
+#health-period-alerts .occurrence-card.is-resolved{border-top-color:#77a18c}
+.occurrence-header{display:flex;justify-content:space-between;align-items:start;gap:12px;flex-wrap:wrap}
+#health-period-alerts .occurrence-header strong{font-size:14px;color:var(--ink);flex:1 1 180px}
+#health-period-alerts .signal-state{font-size:11px}
+.occurrence-meta{font-size:12px;color:var(--muted);margin:0}
+.occurrence-card .scroll{max-height:240px}
+.occurrence-card td{white-space:normal;min-width:120px}
+.signal-reason summary{width:auto}
+.trend-card .health-summary{margin-bottom:14px}
+.trend-card .health-summary article{min-height:85px;background:#f7faf9;border:0}
+.chart-help{font-size:12px;max-width:75ch}
+.page-heading{margin:12px 0 22px}.page-heading h1{font-size:36px;margin-bottom:8px}.page-heading p:last-child{margin-bottom:0}
+@media(max-width:900px){.period-overview{grid-template-columns:repeat(3,1fr)}.period-overview button{grid-column:1/-1}.period-overview strong{font-size:12px}.active-issues .signal-list,#health-period-alerts{grid-template-columns:1fr}}
+@media(max-width:760px){.health-layout{grid-template-columns:1fr}.period-overview{grid-template-columns:1fr;gap:12px}.period-overview>div{display:flex;justify-content:space-between;border:0;padding:0;gap:12px}.page-heading h1{font-size:30px}.pump-viewer{height:260px}}
+
+/* Configuração de período e leitura rápida da antecedência */
+.reference-picker{display:flex;align-items:center;flex-wrap:wrap;gap:9px;margin:14px 0;padding:14px;border:1px solid #dce9e4;border-radius:12px;background:#f7fbf9}
+.reference-picker label{margin:0;color:var(--muted);font-size:13px;font-weight:700}
+.reference-picker input{min-width:150px;padding:9px 10px}
+.reference-picker button{margin-left:auto}
+#evaluation-events td{white-space:normal;min-width:120px;max-width:230px}
+#evaluation-events td:nth-child(2){white-space:nowrap}
+@media(max-width:600px){.reference-picker{align-items:stretch}.reference-picker label{flex:1 0 auto;align-self:center}.reference-picker input{flex:1 1 120px;min-width:0}.reference-picker button{width:100%;margin:0}}
+
+/* Conter os detalhes dentro de cada cartão, inclusive em telas estreitas. */
+#health-period-alerts{grid-template-columns:1fr}
+#health-period-alerts>li,.occurrence-header,.signal-reason,.signal-list>article{min-width:0;max-width:100%}
+#health-period-alerts .occurrence-card{display:block;overflow:hidden}
+.occurrence-header{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:10px}
+.occurrence-header .signal-state{max-width:100%;white-space:normal;overflow-wrap:anywhere}
+.occurrence-card .signal-reason{display:block;width:100%}
+.occurrence-card .scroll{display:block;width:100%;max-width:100%;overflow:auto;max-height:260px}
+.occurrence-card table{min-width:560px;width:100%;table-layout:fixed}
+.occurrence-card td,.occurrence-card th{white-space:normal;overflow-wrap:anywhere}
+.active-issues .signal-item-header{flex-wrap:wrap}

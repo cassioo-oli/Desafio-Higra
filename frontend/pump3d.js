@@ -188,11 +188,19 @@ try {
   }
   window.addEventListener("pump-health-updated", event => {
     active.clear();
-    for (const alert of event.detail || []) if (zones[alert.zona]) active.add(alert.zona);
+    for (const alert of event.detail || []) {
+      if (alert.status === "confirmado" && Number(alert.pontos_descontados || 0) > 0 && zones[alert.zona]) {
+        active.add(alert.zona);
+      }
+    }
     repaintZones();
   });
   active.clear();
-  for (const alert of window.pumpHealthAlerts || []) if (zones[alert.zona]) active.add(alert.zona);
+  for (const alert of window.pumpHealthAlerts || []) {
+    if (alert.status === "confirmado" && Number(alert.pontos_descontados || 0) > 0 && zones[alert.zona]) {
+      active.add(alert.zona);
+    }
+  }
   repaintZones();
   const raycaster = new THREE.Raycaster();
   const pointer = new THREE.Vector2();

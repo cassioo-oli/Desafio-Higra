@@ -43,7 +43,7 @@ form.addEventListener("submit", async (event) => {
     statusText.textContent = file.name + " — " + data.novas.toLocaleString("pt-BR") +
       " leituras salvas, " + data.repetidas.toLocaleString("pt-BR") +
       " repetidas e " + data.ausentes + " campos de sensor vazios.";
-    window.dispatchEvent(new Event("importacao-concluida"));
+    window.dispatchEvent(new CustomEvent("importacao-concluida", {detail: {machines: data.machines}}));
   } catch (error) {
     statusText.textContent = error instanceof TypeError ? "Falha ao conectar ao servidor." : error.message;
   } finally {

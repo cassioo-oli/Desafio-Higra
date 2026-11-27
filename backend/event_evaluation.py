@@ -100,13 +100,9 @@ RULES = {
 
 
 def public_rules():
-    """Devolve catálogo explicativo para a interface, sem expor implementações internas."""
-    return [
-        {"tipo": kind, **details, "condicao": RULES[kind],
-         "verificacoes": PERSISTENCE_CHECKS[kind]}
-        for kind, details in RULE_CATALOG.items()
-    ]
-
+    """Publica o catálogo atual de regras da avaliação de saúde."""
+    import health_service
+    return health_service.public_rules()
 ALERT_NAMES = {
     "cavitacao": "Cavitação",
     "eletrico": "Desbalanceamento elétrico",
@@ -126,12 +122,12 @@ def _difference(left, right):
     return left - right
 
 
-def _baseline(rows):
+def _baseline(rows, baseline_start=BASELINE_START, baseline_end=BASELINE_END):
     buckets = defaultdict(lambda: defaultdict(list))
     for timestamp, values in rows:
-        if timestamp.date().isoformat() > BASELINE_END:
+        if not baseline_start <= timestamp.date().isoformat() <= baseline_end:
             continue
-        if (values.get("Rotacao (rpm)") or 0) <= 0:
+        if (values.get("Rotacao (rpm)") or 0) <= 100:
             continue
         hour = timestamp.hour
         for signal in SIGNALS.values():
@@ -204,10 +200,11 @@ def _alert_payload(kind, candidate_at, confirmed_at):
             "confirmado_em": confirmed_at.isoformat(timespec="minutes")}
 
 
-def _calculate(rows, replay_end=REPLAY_END, daily_snapshots=None):
-    reference = _baseline(rows)
+def _calculate(rows, replay_start=REPLAY_START, replay_end=REPLAY_END,
+               baseline_start=BASELINE_START, baseline_end=BASELINE_END, daily_snapshots=None):
+    reference = _baseline(rows, baseline_start, baseline_end)
     if not reference:
-        raise ValueError("Não há leituras em operação entre 01/06 e 08/06/2026 para montar a referência.")
+        raise ValueError("O período escolhido não tem leituras operacionais suficientes para montar a referência.")
 
     alerts = []
     states = {
@@ -281,7 +278,7 @@ def _calculate(rows, replay_end=REPLAY_END, daily_snapshots=None):
                 hour_rows = []
             save_daily_snapshot(last_observed_day)
         last_observed_day = timestamp.date()
-        if timestamp.date().isoformat() < REPLAY_START or (
+        if timestamp.date().isoformat() < replay_start or (
             replay_end is not None and timestamp.date().isoformat() > replay_end
         ):
             continue
@@ -371,22 +368,35 @@ def _calculate(rows, replay_end=REPLAY_END, daily_snapshots=None):
 
 
 def evaluate(machine):
+    reference_period = database.reference_period(machine)
+    baseline_start, baseline_end = reference_period["inicio"], reference_period["fim"]
+    replay_start = (date.fromisoformat(baseline_end) + timedelta(days=1)).isoformat()
     with database.connection() as db:
+        last_date = db.execute(
+            "SELECT MAX(substr(data,1,10)) FROM leituras WHERE maquina=?", (machine,)
+        ).fetchone()[0]
+        if not last_date:
+            raise ValueError("Esta bomba ainda não tem leituras importadas.")
         rows = db.execute(
             "SELECT data,valores FROM leituras WHERE maquina=? AND data>=? AND data<=? ORDER BY data",
-            (machine, BASELINE_START + "T00:00:00", REPLAY_END + "T23:59:59"),
+            (machine, baseline_start + "T00:00:00", last_date + "T23:59:59"),
         ).fetchall()
     prepared = [(datetime.fromisoformat(row["data"]), json.loads(row["valores"])) for row in rows]
-    detected, missing_intervals, _ = _calculate(prepared)
+    detected, missing_intervals, _ = _calculate(
+        prepared, replay_start=replay_start, replay_end=last_date,
+        baseline_start=baseline_start, baseline_end=baseline_end,
+    )
     baseline_count = sum(
-        timestamp.date().isoformat() <= BASELINE_END
-        and (values.get("Rotacao (rpm)") or 0) > 0
+        baseline_start <= timestamp.date().isoformat() <= baseline_end
+        and (values.get("Rotacao (rpm)") or 0) > 100
         for timestamp, values in prepared
     )
 
     comparisons = []
     matched_ids = set()
-    for event in EVENTS:
+    period_events = [event for event in EVENTS
+                     if event["start"][:10] <= last_date and event["end"][:10] >= replay_start]
+    for event in period_events:
         start, trigger = datetime.fromisoformat(event["start"]), datetime.fromisoformat(event["trigger"])
         allowed_lead = timedelta(days={"cavitacao": 1, "eletrico": 1, "mancal": 2, "rotor": 6}[event["kind"]])
         event_end = datetime.fromisoformat(event["end"])
@@ -416,223 +426,35 @@ def evaluate(machine):
                 "minutos_antes_do_evento": None, "regra": RULES[event["kind"]],
             })
 
-    false_alerts = [alert for alert in detected if id(alert) not in matched_ids]
+    false_alerts = [alert for alert in detected if id(alert) not in matched_ids] if period_events else None
     # Condições persistentes são um incidente contínuo; as regras já mantêm o alerta aberto.
     return {
         "maquina": machine,
-        "referencia": {"inicio": BASELINE_START, "fim": BASELINE_END,
-                       "filtro": "Rotacao (rpm) > 0", "leituras_consideradas": baseline_count},
-        "reproducao": {"inicio": REPLAY_START, "fim": REPLAY_END,
+        "referencia": {"inicio": baseline_start, "fim": baseline_end,
+                       "filtro": "Rotacao (rpm) > 100", "leituras_consideradas": baseline_count},
+        "reproducao": {"inicio": replay_start, "fim": last_date,
                        "modo": "cronológico; cada cálculo usa apenas dados atuais e anteriores"},
         "eventos": comparisons,
         "alertas": detected,
         "falsos_positivos": false_alerts,
-        "quantidade_falsos_positivos": len(false_alerts),
+        "quantidade_falsos_positivos": len(false_alerts) if false_alerts is not None else None,
         "limite_falsos_positivos": FALSE_ALARM_LIMIT,
-        "dentro_limite": len(false_alerts) <= FALSE_ALARM_LIMIT,
+        "dentro_limite": len(false_alerts) <= FALSE_ALARM_LIMIT if false_alerts is not None else None,
+        "eventos_rotulados_disponiveis": bool(period_events),
         "lacunas_de_comunicacao": missing_intervals,
-        "nota": "O catálogo dos quatro eventos é usado somente para pontuar a reprodução. Picos isolados são filtrados pela persistência; leituras com motor desligado e intervalos sem dados não viram valores inventados.",
+        "nota": ("A antecedência é calculada somente para eventos conhecidos dentro do período. Para outras datas, é necessário registrar quando a falha real ocorreu. O detector não usa esses horários para gerar avisos."
+                 if not period_events else
+                 "O catálogo de eventos conhecidos é usado somente para medir a antecedência depois da reprodução. Picos isolados são filtrados pela persistência; leituras com motor desligado e intervalos sem dados não viram valores inventados."),
     }
 
 
 def health_score(machine):
-    """Calcula uma nota provisória a partir das regras persistentes ainda ativas."""
-    with database.connection() as db:
-        rows = db.execute(
-            "SELECT data,valores FROM leituras WHERE maquina=? AND data>=? ORDER BY data",
-            (machine, BASELINE_START + "T00:00:00"),
-        ).fetchall()
-    prepared = [(datetime.fromisoformat(row["data"]), json.loads(row["valores"])) for row in rows]
-    if not prepared:
-        raise ValueError("Não há leituras salvas para esta bomba.")
-    detected_alerts, missing_intervals, active_rules = _calculate(prepared, replay_end=None)
-    latest_active = next(
-        ((timestamp, values) for timestamp, values in reversed(prepared)
-         if (values.get("Rotacao (rpm)") or 0) > 0), None
-    )
-    if latest_active is None:
-        return {"maquina": machine, "nota": None, "snapshot_em": None,
-                "status": "Sem leitura da bomba em operação.", "descontos": [],
-                "formula": "100 menos 25 pontos por regra ativa, limitada ao intervalo de 0 a 100.",
-                "lacunas_de_comunicacao": missing_intervals}
+    """Calcula a nota da bomba com os descontos definidos no documento Regras."""
+    import health_service
+    return health_service.health_score(machine)
 
-    snapshot_at, _ = latest_active
-    deductions = {
-        "cavitacao": ("Vibração axial, vazão e pressão",
-                      "Vibração de pelo menos 4,5 mm/s junto de oscilações de 25 m³/h na vazão e 2,5 mca na pressão, em sequência persistente."),
-        "eletrico": ("Tensão, corrente e temperatura da fase S",
-                     "Pelo menos dois desvios simultâneos e persistentes: tensão da fase S 7 V abaixo da relação normal com R/T, corrente relativa 4% maior ou temperatura da fase S 3,5 °C acima da relação normal."),
-        "mancal": ("Temperatura radial, temperatura axial e vibração axial",
-                   "Temperatura radial pelo menos 7 °C acima da referência horária, diferença radial-axial 4 °C maior e vibração 0,7 mm/s maior, com persistência."),
-        "rotor": ("Vazão, pressão de recalque e rendimento",
-                  "Média horária de vazão abaixo de 97% da referência, pressão abaixo de 99,5% e rendimento 2 pontos menor por 3 horas operacionais seguidas."),
-    }
-    active_alerts = []
-    active_set = set(active_rules)
-    for alert in reversed(detected_alerts):
-        if alert["tipo"] in active_set and alert["tipo"] not in {item["tipo"] for item in active_alerts}:
-            active_alerts.append(alert)
-
-    rows_out = []
-    for kind in active_rules:
-        signals, reason = deductions[kind]
-        alert = next((item for item in active_alerts if item["tipo"] == kind), None)
-        rows_out.append({
-            "regra": ALERT_NAMES[kind], "sinais": signals, "pontos_descontados": 25,
-            "motivo": reason, "zona": RULE_CATALOG[kind]["zona"],
-            "alerta_confirmado_em": alert["confirmado_em"] if alert else None,
-        })
-    score = max(0, 100 - 25 * len(rows_out))
-    return {
-        "maquina": machine, "nota": score,
-        "snapshot_em": snapshot_at.isoformat(timespec="minutes"),
-        "status": "Nota calculada com as regras ativas no fim do histórico salvo.",
-        "descontos": rows_out,
-        "formula": "100 menos 25 pontos por regra ativa, limitada ao intervalo de 0 a 100.",
-        "lacunas_de_comunicacao": missing_intervals,
-        "nota_metodologica": "Pesos iguais e limiar de persistência são parâmetros iniciais de protótipo, não uma escala clínica ou de segurança validada pela Higra. Dados ausentes não reduzem a saúde da bomba; aparecem como lacunas de qualidade do dado.",
-    }
-
-
-<<<<<<< HEAD
-def health_history(machine, start=None, end=None):
-    """Resume a nota no fim de cada dia, reproduzindo as regras até a data filtrada."""
-=======
 
 def health_history(machine, start=None, end=None):
-    """Resume a nota atual, a evolução diária e os alertas de um período."""
-    requested_start = datetime.strptime(start, "%Y-%m-%d").date() if start else None
-    requested_end = datetime.strptime(end, "%Y-%m-%d").date() if end else None
-    if requested_start and requested_end and requested_start > requested_end:
-        raise ValueError("A data inicial deve ser anterior à final.")
-
->>>>>>> f78583c29bad4f4ad59f84f2df03c4a49e3a8561
-    with database.connection() as db:
-        rows = db.execute(
-            "SELECT data,valores FROM leituras WHERE maquina=? AND data>=? ORDER BY data",
-            (machine, BASELINE_START + "T00:00:00"),
-        ).fetchall()
-<<<<<<< HEAD
-    if not rows:
-        raise ValueError("Não há leituras salvas para esta bomba.")
-
-    available_end = date.fromisoformat(rows[-1]["data"][:10])
-    try:
-        start_date = date.fromisoformat(start) if start else date.fromisoformat(BASELINE_START)
-        end_date = date.fromisoformat(end) if end else available_end
-    except ValueError as exc:
-        raise ValueError("Informe as datas no formato dia/mês/ano válido.") from exc
-    if start_date < date.fromisoformat(BASELINE_START):
-        raise ValueError("O período deve começar em 01/06/2026 ou depois, quando há referência disponível.")
-    if start_date > end_date:
-        raise ValueError("A data inicial deve ser anterior ou igual à data final.")
-
-    processing_end = max(end_date, date.fromisoformat(BASELINE_END))
-    prepared = [(datetime.fromisoformat(row["data"]), json.loads(row["valores"])) for row in rows
-                if row["data"] <= processing_end.isoformat() + "T23:59:59"]
-    snapshots = []
-    alerts, missing_intervals, _ = _calculate(
-        prepared, replay_end=end_date.isoformat(), daily_snapshots=snapshots
-    )
-    days = [item for item in snapshots if start_date.isoformat() <= item["data"] <= end_date.isoformat()]
-    scores = [item["nota"] for item in days]
-    period_alerts = []
-    for alert in alerts:
-        confirmed_day = alert["confirmado_em"][:10]
-        if start_date.isoformat() <= confirmed_day <= end_date.isoformat():
-            period_alerts.append({
-                "tipo": alert["tipo"], "nome": alert["falha"],
-                "regra": alert["previsto"], "inicio_condicao": alert["inicio_condicao"],
-                "confirmado_em": alert["confirmado_em"],
-            })
-
-    return {
-        "maquina": machine,
-        "inicio": start_date.isoformat(), "fim": end_date.isoformat(),
-        "inicio_disponivel": rows[0]["data"][:10],
-        "fim_disponivel": available_end.isoformat(),
-        "nota_atual": scores[-1] if scores else None,
-        "data_nota_atual": days[-1]["data"] if days else None,
-        "media_diaria": round(sum(scores) / len(scores), 1) if scores else None,
-        "minima_diaria": min(scores) if scores else None,
-        "dias_com_dados": len(days),
-        "dias": days,
-        "alertas": period_alerts,
-        "lacunas_de_comunicacao": missing_intervals,
-        "nota_metodologica": "Cada ponto é calculado ao fim de um dia, usando somente leituras até aquela data. A média e o mínimo consideram dias com registros; cada regra ativa desconta 25 pontos.",
-=======
-    prepared = [(datetime.fromisoformat(row["data"]), json.loads(row["valores"])) for row in rows]
-    if not prepared:
-        raise ValueError("Não há leituras salvas para esta bomba.")
-
-    operating = [
-        (timestamp, values) for timestamp, values in prepared
-        if (values.get("Rotacao (rpm)") or 0) > 0
-    ]
-    if not operating:
-        return {
-            "maquina": machine, "nota_atual": None, "snapshot_em": None,
-            "periodo": {"inicio": None, "fim": None}, "serie": [],
-            "media_diaria": None, "minima_diaria": None, "dias_com_dados": 0,
-            "alertas_periodo": [],
-            "mensagem": "Não há leituras operacionais para calcular a evolução.",
-        }
-
-    current = health_score(machine)
-    replay_start = datetime.strptime(REPLAY_START, "%Y-%m-%d").date()
-    first_operating = operating[0][0].date()
-    last_operating = operating[-1][0].date()
-    earliest_day = max(replay_start, first_operating)
-    period_start = max(requested_start or earliest_day, earliest_day)
-    period_end = min(requested_end or last_operating, last_operating)
-
-    series = []
-    alerts_in_period = []
-    if period_start <= period_end:
-        operation_days = {timestamp.date() for timestamp, _ in operating}
-        next_row = 0
-        for day_offset in range((period_end - period_start).days + 1):
-            day = period_start + timedelta(days=day_offset)
-            while next_row < len(prepared) and prepared[next_row][0].date() <= day:
-                next_row += 1
-            if day not in operation_days or next_row == 0:
-                continue
-            alerts, _, active_rules = _calculate(
-                prepared[:next_row], replay_end=day.isoformat()
-            )
-            score = max(0, 100 - 25 * len(active_rules))
-            series.append({"data": day.isoformat(), "nota": score})
-
-        next_row = 0
-        while next_row < len(prepared) and prepared[next_row][0].date() <= period_end:
-            next_row += 1
-        if next_row:
-            alerts, _, _ = _calculate(
-                prepared[:next_row], replay_end=period_end.isoformat()
-            )
-            alerts_in_period = [
-                alert for alert in alerts
-                if period_start <= datetime.fromisoformat(alert["confirmado_em"]).date() <= period_end
-            ]
-
-    scores = [item["nota"] for item in series]
-    minimum = min(series, key=lambda item: item["nota"]) if series else None
-    return {
-        "maquina": machine,
-        "nota_atual": current["nota"],
-        "snapshot_em": current["snapshot_em"],
-        "periodo": {
-            "inicio": period_start.isoformat() if period_start <= period_end else None,
-            "fim": period_end.isoformat() if period_start <= period_end else None,
-        },
-        "serie": series,
-        "media_diaria": round(sum(scores) / len(scores), 1) if scores else None,
-        "minima_diaria": minimum,
-        "dias_com_dados": len(series),
-        "alertas_periodo": alerts_in_period,
-        "mensagem": (
-            "A média e a mínima consideram apenas dias com leituras da bomba em operação. "
-            "Dias sem dados não recebem uma nota."
-        ),
->>>>>>> f78583c29bad4f4ad59f84f2df03c4a49e3a8561
-    }
+    """Devolve notas diárias e avisos recalculados cronologicamente."""
+    import health_service
+    return health_service.health_history(machine, start, end)

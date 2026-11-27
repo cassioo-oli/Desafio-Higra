@@ -88,6 +88,11 @@ class Handler(SimpleHTTPRequestHandler):
         try:
             if url.path == "/api/historico":
                 self.respond_json(database.history())
+            elif url.path == "/api/referencia-periodo":
+                machine = parse_qs(url.query).get("maquina", [""])[0]
+                if not machine:
+                    raise ValueError("Selecione uma bomba para configurar a referência.")
+                self.respond_json(database.reference_period(machine))
             elif url.path == "/api/regras":
                 self.respond_json({"regras": event_evaluation.public_rules()})
             elif url.path == "/api/leituras":
@@ -98,8 +103,8 @@ class Handler(SimpleHTTPRequestHandler):
                 if not machine:
                     raise ValueError("Selecione uma bomba para calcular a referência.")
                 self.respond_json(database.baseline(machine,
-                    params.get("inicio", ["2026-06-01"])[0],
-                    params.get("fim", ["2026-06-08"])[0]))
+                    params.get("inicio", [None])[0],
+                    params.get("fim", [None])[0]))
             elif url.path == "/api/avaliacao-eventos":
                 machine = parse_qs(url.query).get("maquina", [""])[0]
                 if not machine:
@@ -110,8 +115,7 @@ class Handler(SimpleHTTPRequestHandler):
                 if not machine:
                     raise ValueError("Selecione uma bomba para calcular a nota de saúde.")
                 self.respond_json(event_evaluation.health_score(machine))
-<<<<<<< HEAD
-            elif url.path == "/api/saude-historico":
+            elif url.path in ("/api/saude-historico", "/api/saude/historico"):
                 params = parse_qs(url.query)
                 machine = params.get("maquina", [""])[0]
                 if not machine:
@@ -119,16 +123,6 @@ class Handler(SimpleHTTPRequestHandler):
                 self.respond_json(event_evaluation.health_history(
                     machine, params.get("inicio", [None])[0], params.get("fim", [None])[0]
                 ))
-=======
-            elif url.path == "/api/saude/historico":
-                params = parse_qs(url.query)
-                machine = params.get("maquina", [""])[0]
-                if not machine:
-                    raise ValueError("Selecione uma bomba para consultar a evolução.")
-                self.respond_json(event_evaluation.health_history(
-                    machine, params.get("inicio", [None])[0],
-                    params.get("fim", [None])[0]))
->>>>>>> f78583c29bad4f4ad59f84f2df03c4a49e3a8561
             else:
                 super().do_GET()
         except ValueError as exc:
@@ -137,6 +131,23 @@ class Handler(SimpleHTTPRequestHandler):
             self.respond_json({"error": "Falha ao consultar o banco. Tente novamente."}, 503)
 
     def do_POST(self):
+        if self.path == "/api/referencia-periodo":
+            try:
+                size = int(self.headers.get("Content-Length", 0))
+                if not 0 < size <= 32 * 1024:
+                    raise ValueError("Envie as datas do período de referência.")
+                payload = json.loads(self.rfile.read(size))
+                result = database.set_reference_period(
+                    str(payload.get("maquina", "")).strip(),
+                    str(payload.get("inicio", "")).strip(),
+                    str(payload.get("fim", "")).strip(),
+                )
+                self.respond_json(result)
+            except (ValueError, json.JSONDecodeError) as exc:
+                self.respond_json({"error": str(exc)}, 400)
+            except sqlite3.Error:
+                self.respond_json({"error": "Falha ao salvar o período de referência."}, 503)
+            return
         if self.path != "/api/importar":
             self.send_error(404)
             return

@@ -39,6 +39,12 @@ def connection():
                     importacao_id INTEGER NOT NULL REFERENCES importacoes(id),
                     PRIMARY KEY (maquina, data)
                 );
+                CREATE TABLE IF NOT EXISTS periodos_referencia (
+                    maquina TEXT PRIMARY KEY REFERENCES bombas(nome),
+                    inicio TEXT NOT NULL,
+                    fim TEXT NOT NULL,
+                    atualizado_em TEXT NOT NULL
+                );
             """)
         yield db
     finally:
@@ -163,7 +169,11 @@ def readings(params):
         """, args).fetchone()[0]
         return dict(total=total, pagina=page, lacunas=gaps,
                     leituras=[dict(Data=r["data"], Máquina=r["maquina"], **json.loads(r["valores"])) for r in rows])
-def baseline(machine, start="2026-06-01", end="2026-06-08"):
+def baseline(machine, start=None, end=None):
+    if start is None or end is None:
+        period = reference_period(machine)
+        start = start or period["inicio"]
+        end = end or period["fim"]
     datetime.strptime(start, "%Y-%m-%d")
     datetime.strptime(end, "%Y-%m-%d")
     if start > end:
@@ -175,11 +185,12 @@ def baseline(machine, start="2026-06-01", end="2026-06-08"):
     active = []
     for record in records:
         values = json.loads(record["valores"])
-        rotation = values.get("Rotacao (rpm)")
-        if isinstance(rotation, (int, float)) and rotation > 0:
+        import health_rules
+        rotation = health_rules._sample(values).get("rpm")
+        if isinstance(rotation, (int, float)) and rotation > 100:
             active.append(values)
     if not active:
-        raise ValueError("Não há leituras com rotação acima de zero nesse período.")
+        raise ValueError("Não há leituras com Rotação acima de 100 rpm neste período. Escolha datas em que a bomba estava operando.")
     weights = {
         "TemperaturaRadial (°C)": 10, "TemperaturaAxial (°C)": 10,
         "VibracaoAxial (mm/s)": 10, "Rendimento (%)": 8,
@@ -201,6 +212,55 @@ def baseline(machine, start="2026-06-01", end="2026-06-08"):
             signals[name] = dict(peso=weight, leituras=len(observed), media=average,
                                  minimo=min(observed), maximo=max(observed),
                                  amplitude=max(observed)-min(observed), variancia=variance)
-    return dict(maquina=machine, inicio=start, fim=end, criterio="Rotacao (rpm) > 0",
+    return dict(maquina=machine, inicio=start, fim=end, criterio="Rotacao (rpm) > 100",
                 leituras_consideradas=len(active), leituras_periodo=len(records), sinais=signals)
+
+
+def reference_period(machine):
+    """Devolve a janela configurada ou sugere os primeiros oito dias disponíveis."""
+    with connection() as db:
+        bounds = db.execute(
+            "SELECT MIN(substr(data,1,10)) AS inicio, MAX(substr(data,1,10)) AS fim FROM leituras WHERE maquina=?",
+            (machine,),
+        ).fetchone()
+        if not bounds["inicio"]:
+            raise ValueError("Esta bomba ainda não tem leituras importadas.")
+        saved = db.execute(
+            "SELECT inicio,fim FROM periodos_referencia WHERE maquina=?", (machine,)
+        ).fetchone()
+    if saved:
+        start, end, configured = saved["inicio"], saved["fim"], True
+    else:
+        from datetime import date, timedelta
+        first, last = date.fromisoformat(bounds["inicio"]), date.fromisoformat(bounds["fim"])
+        start = first.isoformat()
+        end = min(first + timedelta(days=7), last).isoformat()
+        configured = False
+    return {
+        "maquina": machine, "inicio": start, "fim": end,
+        "disponivel_inicio": bounds["inicio"], "disponivel_fim": bounds["fim"],
+        "configurado": configured,
+    }
+
+
+def set_reference_period(machine, start, end):
+    datetime.strptime(start, "%Y-%m-%d")
+    datetime.strptime(end, "%Y-%m-%d")
+    if start > end:
+        raise ValueError("A data inicial da referência deve ser anterior ou igual à data final.")
+    period = reference_period(machine)
+    if start < period["disponivel_inicio"] or end > period["disponivel_fim"]:
+        raise ValueError("Escolha um período dentro das datas disponíveis neste CSV.")
+    stats = baseline(machine, start, end)
+    if stats["leituras_consideradas"] < 30:
+        raise ValueError("O período precisa ter ao menos 30 leituras com a bomba em operação. Escolha datas com mais dados.")
+    with connection() as db:
+        db.execute(
+            "INSERT INTO periodos_referencia(maquina,inicio,fim,atualizado_em) VALUES(?,?,?,?) "
+            "ON CONFLICT(maquina) DO UPDATE SET inicio=excluded.inicio,fim=excluded.fim,atualizado_em=excluded.atualizado_em",
+            (machine, start, end, datetime.now().isoformat(timespec="seconds")),
+        )
+    return {**period, "inicio": start, "fim": end, "configurado": True,
+            "leituras_consideradas": stats["leituras_consideradas"],
+            "leituras_periodo": stats["leituras_periodo"], "sinais": stats["sinais"]}
 
